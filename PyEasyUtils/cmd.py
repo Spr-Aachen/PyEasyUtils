@@ -15,7 +15,7 @@ from .text import rawString
 
 class subprocessManager:
     """
-
+    Manage subprocess of commands
     """
     def __init__(self,
         communicateThroughConsole: bool = False

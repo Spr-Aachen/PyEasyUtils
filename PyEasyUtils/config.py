@@ -9,7 +9,7 @@ from .path import normPath
 
 class configManager:
     """
-    Manage config
+    Manage config through ConfigParser
     """
     def __init__(self,
         configPath: Optional[str] = None
@@ -57,7 +57,7 @@ class configManager:
                 self.editConfig(section, option, initValue, configParser)
                 return initValue
             else:
-                raise Exception("Need initial value")
+                pass #raise Exception("Need initial value")
         return value
 
 #############################################################################################################

@@ -11,7 +11,7 @@ from .path import normPath
 
 class taskAccelerationManager(Enum):
     """
-    Class to accelerate tasks by using thread or process pools
+    Manage task acceleration
     """
     ThreadPool = 0
     ProcessPool = 1
