@@ -37,6 +37,20 @@ def normPath(
 
 #############################################################################################################
 
+"""
+def getPaths(
+    directory,
+    extensions
+):
+    matchedFiles = []
+
+    for extension in extensions:
+        matchedFiles.extend(Path(directory).glob(f'*{extension}'))
+
+    return matchedFiles
+"""
+
+
 def getPaths(
     directory: str,
     name: str,
@@ -45,21 +59,21 @@ def getPaths(
     """
     Get all paths of files and folders in directory
     """
-    Result = []
+    results = []
 
-    for DirPath, FolderNames, fileNames in os.walk(directory):
-        for FolderName in FolderNames:
-            if name == FolderName or (name in FolderName and searchKeyword is True):
-                Result.append(os.path.join(DirPath, FolderName))
+    for dirPath, folderNames, fileNames in os.walk(directory):
+        for folderName in folderNames:
+            if name == folderName or (name in folderName and searchKeyword is True):
+                results.append(Path(dirPath).joinpath(folderName))
             else:
                 pass
         for fileName in fileNames:
             if name == fileName or (name in fileName and searchKeyword is True):
-                Result.append(os.path.join(DirPath, fileName))
+                results.append(Path(dirPath).joinpath(fileName))
             else:
                 pass
 
-    return Result if len(Result) > 0 else None
+    return [result.as_posix() for result in results] if len(results) > 0 else None
 
 #############################################################################################################
 
@@ -72,13 +86,13 @@ def getBaseDir(
     Get the parent directory of file, or get the MEIPASS if file is compiled with pyinstaller
     """
     if filePath is not None:
-        BaseDir = normPath(Path(str(filePath)).absolute().parents[parentLevel if parentLevel is not None else 0])
+        baseDir = normPath(Path(str(filePath)).absolute().parents[parentLevel if parentLevel is not None else 0])
     elif searchMEIPASS and getattr(sys, 'frozen', None):
-        BaseDir = normPath(sys._MEIPASS)
+        baseDir = normPath(sys._MEIPASS)
     else:
-        BaseDir = None
+        baseDir = None
 
-    return BaseDir
+    return baseDir
 
 
 def getFileInfo(
@@ -139,18 +153,18 @@ def cleanDirectory(
     Remove all files and folders in directory except those in whiteList
     """
     if os.path.exists(directory):
-        for DirPath, Folders, Files in os.walk(directory, topdown = False):
-            for file in Files:
-                filePath = os.path.join(DirPath, file)
+        for dirPath, folders, files in os.walk(directory, topdown = False):
+            for file in files:
+                filePath = Path(dirPath).joinpath(file).as_posix()
                 try:
                     if not any(file in filePath for file in whiteList):
                         os.remove(filePath)
                 except:
                     pass
-            for Folder in Folders:
-                FolderPath = os.path.join(DirPath, Folder)
+            for folder in folders:
+                FolderPath = Path(dirPath).joinpath(folder).as_posix()
                 try:
-                    if not any(Folder in FolderPath for Folder in whiteList):
+                    if not any(folder in FolderPath for folder in whiteList):
                         shutil.rmtree(FolderPath)
                 except:
                     pass
@@ -163,12 +177,12 @@ def moveFiles(
     """
     Move all files and folders in directory to destination
     """
-    for DirPath, FolderNames, fileNames in os.walk(directory):
-        for FolderName in FolderNames:
+    for dirPath, folderNames, fileNames in os.walk(directory):
+        for folderName in folderNames:
             if directory != destination:
-                shutil.move(os.path.join(DirPath, FolderName), destination)
+                shutil.move(Path(dirPath).joinpath(folderName).as_posix(), destination)
         for fileName in fileNames:
             if directory != destination:
-                shutil.move(os.path.join(DirPath, fileName), destination)
+                shutil.move(Path(dirPath).joinpath(fileName).as_posix(), destination)
 
 #############################################################################################################

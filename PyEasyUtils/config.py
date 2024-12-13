@@ -57,7 +57,8 @@ class configManager:
                 self.editConfig(section, option, initValue, configParser)
                 return initValue
             else:
-                pass #raise Exception("Need initial value")
-        return value
+                return None #raise Exception("Need initial value")
+        else:
+            return value
 
 #############################################################################################################

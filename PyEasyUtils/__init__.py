@@ -7,5 +7,5 @@ from .process import taskAccelerationManager, processTerminator, occupationTermi
 from .cmd import subprocessManager, runCMD, runScript, bootWithScript
 from .env import isVersionSatisfied, isSystemSatisfied, setEnvVar
 from .config import configManager
-from .database import sqlManager
+from .database import sqliteManager
 from .web import downloadFile, checkUpdateFromGithub
