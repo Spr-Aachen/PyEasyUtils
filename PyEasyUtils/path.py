@@ -95,6 +95,13 @@ def getBaseDir(
     return baseDir
 
 
+def getCurrentPath():
+    """
+    Get the path of the current python file
+    """
+    return Path(sys.argv[0]).as_posix() #return __file__ if getFileInfo()[1] == False else sys.executable
+
+
 def getFileInfo(
     file: Optional[str] = None
 ):
@@ -102,7 +109,7 @@ def getFileInfo(
     Check whether python file is compiled
     """
     if file is None:
-        fileName = Path(sys.argv[0]).name
+        fileName = Path(getCurrentPath()).name
         if getattr(sys, 'frozen', None):
             isFileCompiled = True
         else:
@@ -121,7 +128,7 @@ def renameIfExists(
     """
     If pathStr already exists, rename it to pathStr(0), pathStr(1), etc.
     """
-    ParentDirectory, name = os.path.split(pathStr)
+    parentPath, name = Path(pathStr).parent, Path(pathStr).name
     suffix = Path(name).suffix
     if len(suffix) > 0:
         while Path(pathStr).exists():
@@ -131,7 +138,7 @@ def renameIfExists(
             else:
                 CurrentNumber = int(re.findall(pattern, name)[-1])
                 name = name.replace(f'({CurrentNumber}).', f'({CurrentNumber + 1}).')
-            pathStr = Path(ParentDirectory).joinpath(name).as_posix()
+            pathStr = parentPath.joinpath(name).as_posix()
     else:
         while Path(pathStr).exists():
             pattern = r'(\d+)\)'
@@ -141,7 +148,7 @@ def renameIfExists(
             else:
                 CurrentNumber = int(match.group(1))
                 name = name[:match.start(1)] + f'({CurrentNumber + 1})'
-            pathStr = Path(ParentDirectory).joinpath(name).as_posix()
+            pathStr = parentPath.joinpath(name).as_posix()
     return pathStr
 
 
@@ -152,7 +159,7 @@ def cleanDirectory(
     """
     Remove all files and folders in directory except those in whiteList
     """
-    if os.path.exists(directory):
+    if Path(directory).exists():
         for dirPath, folders, files in os.walk(directory, topdown = False):
             for file in files:
                 filePath = Path(dirPath).joinpath(file).as_posix()

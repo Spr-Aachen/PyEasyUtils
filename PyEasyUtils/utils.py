@@ -1,23 +1,24 @@
-import collections
-collections.Iterable = collections.abc.Iterable
 import inspect
 from typing import Union
 
 #############################################################################################################
 
 def toIterable(
-    items,
+    *items,
     ignoreString: bool = True
 ):
     '''
     Function to make item iterable
     '''
-    if isinstance(items, collections.Iterable) or hasattr(items, '__iter__'):
-        ItemList = [items] if isinstance(items, (str, bytes)) and ignoreString else items
-    else:
-        ItemList = [items]
-
-    return ItemList
+    iterableItems = []
+    for item in items:
+        if hasattr(item, '__iter__'):
+            iterableItem = [item] if isinstance(item, (str, bytes)) and ignoreString else item
+        else:
+            iterableItem = [item]
+        #yield from iterableItem
+        iterableItems.extend(iterableItem)
+    return tuple(iterableItems)# if len(iterableItems) > 1 else iterableItems[0]
 
 
 def itemReplacer(

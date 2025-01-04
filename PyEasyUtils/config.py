@@ -1,5 +1,6 @@
 import os
 import configparser
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -14,13 +15,13 @@ class configManager:
     def __init__(self,
         configPath: Optional[str] = None
     ):
-        self.configPath = normPath(Path(os.getenv('SystemDrive')).joinpath('Config.ini')) if configPath == None else configPath
-        os.makedirs(Path(self.configPath).parent, exist_ok = True)
-
         self.configParser = configparser.ConfigParser()
-        try:
+        self.configPath = normPath(Path(os.getcwd()).joinpath('config_%s.ini' % datetime.now())) if configPath == None else configPath
+        if Path(self.configPath).exists():
             self.configParser.read(self.configPath, encoding = 'utf-8')
-        except:
+        else:
+            configDir = Path(self.configPath).parent.as_posix()
+            os.makedirs(configDir, exist_ok = True) if Path(configDir).exists() == False else None
             with open(self.configPath, 'w'):
                 pass
             self.configParser.clear()
