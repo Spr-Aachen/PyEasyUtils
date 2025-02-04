@@ -1,5 +1,5 @@
 import inspect
-from typing import Union
+from typing import Iterable
 
 #############################################################################################################
 
@@ -7,9 +7,9 @@ def toIterable(
     *items,
     ignoreString: bool = True
 ):
-    '''
+    """
     Function to make item iterable
-    '''
+    """
     iterableItems = []
     for item in items:
         if hasattr(item, '__iter__'):
@@ -20,14 +20,15 @@ def toIterable(
         iterableItems.extend(iterableItem)
     return tuple(iterableItems)# if len(iterableItems) > 1 else iterableItems[0]
 
+#############################################################################################################
 
 def itemReplacer(
     dict: dict,
     items: object
 ):
-    '''
+    """
     Function to replace item using dictionary lookup
-    '''
+    """
     ItemList = toIterable(items, ignoreString = False)
 
     ItemList_New = [dict.get(Item, Item) for Item in ItemList]
@@ -47,8 +48,8 @@ def findKey(
     targetValue
 ):
     """
-     Find key from dictionary
-     """
+    Find key from dictionary
+    """
     for Key, value in dict.items():
         if value == targetValue:
             return Key
@@ -71,16 +72,16 @@ def getClassFromMethod(
 #############################################################################################################
 
 def runEvents(
-    events: Union[list, dict]
+    events: Iterable
 ):
     """
     Function to run events
     """
-    if isinstance(events, list):
-        for Event in events:
-            Event() if Event is not None else None
     if isinstance(events, dict):
         for Event, Param in events.items():
             Event(*toIterable(Param if Param is not None else ())) if Event is not None else None
+    else:
+        for Event in iter(events):
+            Event() if Event is not None else None
 
 #############################################################################################################

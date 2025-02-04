@@ -2,6 +2,7 @@ import os
 import platform
 import hashlib
 import urllib
+import requests
 from tqdm import tqdm
 from packaging import version
 from github import Github
@@ -10,6 +11,24 @@ from typing import Union, Optional, Tuple
 
 from .path import normPath
 from .cmd import runCMD
+
+#############################################################################################################
+
+def isConnected(
+    host: str,
+    port: int,
+):
+    """
+    Check connection
+    """
+    try:
+        response = requests.get(
+            url = f"http://{host}:{port}/"
+        )
+        return True
+    except Exception as e:
+        print(e)
+        return False
 
 #############################################################################################################
 
