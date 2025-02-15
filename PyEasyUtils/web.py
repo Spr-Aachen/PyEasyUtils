@@ -32,6 +32,36 @@ def isConnected(
 
 #############################################################################################################
 
+def _download(
+    downloadURL: str,
+    downloadPath: str,
+):
+    with urllib.request.urlopen(downloadURL) as source, open(downloadPath, mode = "wb") as output:
+        totalLength = int(source.info().get("content-Length"))
+        while True:
+            buffer = source.read(8192)
+            if not buffer:
+                break
+            output.write(buffer)
+            yield len(buffer), totalLength
+
+
+def _download_aria(
+    downloadURL: str,
+    downloadPath: str,
+    createNewConsole: bool = False
+):
+    runCMD(
+        args = [
+            'aria2c',
+            f'''
+            {('cmd.exe /c start ' if platform.system() == 'Windows' else 'x-terminal-emulator -e ') if createNewConsole else ''}
+            aria2c "{downloadURL}" --dir="{Path(downloadPath).parent.as_posix()}" --out="{Path(downloadPath).name}" -x6 -s6 --file-allocation=none --force-save=false
+            '''
+        ]
+    )
+
+
 def downloadFile(
     downloadURL: str,
     downloadDir: str,
@@ -43,55 +73,37 @@ def downloadFile(
     """
     Downloads a file from a given URL and saves it to a specified directory
     """
-    os.makedirs(downloadDir, exist_ok = True)
+    fileBytes = None
+    isDownloadNeeded = True
 
     downloadName = fileName + (fileFormat if '.' in fileFormat else f'.{fileFormat}')
     downloadPath = normPath(Path(downloadDir).joinpath(downloadName).absolute())
 
-    def Download():
-        try:
-            runCMD(
-                args = [
-                    'aria2c',
-                    f'''
-                    {('cmd.exe /c start ' if platform.system() == 'Windows' else 'x-terminal-emulator -e ') if createNewConsole else ''}
-                    aria2c "{downloadURL}" --dir="{Path(downloadPath).parent.as_posix()}" --out="{Path(downloadPath).name}" -x6 -s6 --file-allocation=none --force-save=false
-                    '''
-                ]
-            )
-        except:
-            with urllib.request.urlopen(downloadURL) as source, open(downloadPath, "wb") as output:
-                with tqdm(total = int(source.info().get("content-Length")), ncols = 80, unit = 'iB', unit_scale = True, unit_divisor = 1024) as loop:
-                    while True:
-                        buffer = source.read(8192)
-                        if not buffer:
-                            break
-                        output.write(buffer)
-                        loop.update(len(buffer))
-        finally:
-            return open(downloadPath, "rb").read() if Path(downloadPath).exists() else None
-
-    if os.path.exists(downloadPath):
-        if os.path.isfile(downloadPath) == False:
-            raise RuntimeError(f"{downloadPath} exists and is not a regular file")
-        elif sha is not None:
-            with open(downloadPath, "rb") as f:
-                FileBytes = f.read()
+    if Path(downloadPath).exists():
+        if Path(downloadPath).is_file() and sha is not None:
+            with open(downloadPath, mode = "rb") as f:
+                fileBytes = f.read()
             if len(sha) == 40:
-                SHA_Current = hashlib.sha1(FileBytes).hexdigest()
+                SHA_Current = hashlib.sha1(fileBytes).hexdigest()
             if len(sha) == 64:
-                SHA_Current = hashlib.sha256(FileBytes).hexdigest()
-            FileBytes = Download() if SHA_Current != sha else FileBytes #Download() if SHA_Current != sha else None
+                SHA_Current = hashlib.sha256(fileBytes).hexdigest()
+            isDownloadNeeded = True if SHA_Current != sha else False
         else:
             os.remove(downloadPath)
-            FileBytes = Download()
-    else:
-        FileBytes = Download()
+            os.makedirs(downloadDir, exist_ok = True)
 
-    if FileBytes is None:
+    if isDownloadNeeded:
+        try:
+            _download_aria(downloadURL, downloadPath, createNewConsole)
+        except:
+            iter(_download(downloadURL, downloadPath))
+        finally:
+            fileBytes = open(downloadPath, mode = "rb").read() if Path(downloadPath).exists() else None
+
+    if fileBytes is None:
         raise Exception('Download Failed!')
 
-    return FileBytes, downloadPath
+    return fileBytes, downloadPath
 
 #############################################################################################################
 
