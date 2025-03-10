@@ -3,12 +3,15 @@ import platform
 import hashlib
 import urllib
 import requests
+import json
 from tqdm import tqdm
 from packaging import version
 from github import Github
 from pathlib import Path
+from enum import Enum
 from typing import Union, Optional, Tuple
 
+from .utils import toIterable
 from .path import normPath
 from .cmd import runCMD
 
@@ -29,6 +32,57 @@ def isConnected(
     except Exception as e:
         print(e)
         return False
+
+
+class requestManager(Enum):
+    """
+    Manage request
+    """
+    Post = 0
+    Get = 1
+
+    def createResponse(self,
+        host: str,
+        port: str,
+        pathParams: Union[str, list[str], None] = None,
+        queryParams: Union[str, list[str], None] = None,
+        headers: Optional[dict] = None,
+        data: Union[dict, json.JSONEncoder, None] = None,
+    ):
+        if self == self.Post:
+            reqMethod = requests.post
+        if self == self.Get:
+            reqMethod = requests.get
+        pathParams = "/".join(toIterable(pathParams) if pathParams else [])
+        queryParams = "&".join(toIterable(queryParams) if queryParams else [])
+        self.response = reqMethod(
+            url = f"http://{host}:{port}"
+            + (f"/{pathParams}" if len(pathParams) > 0 else "")
+            + (f"?{queryParams}" if len(queryParams) > 0 else ""),
+            headers = headers,
+            data = data if isinstance(data, json.JSONDecoder) else (json.dumps(data) if data is not None else None)
+        )
+        return self.response
+
+
+def simpleRequest(
+    reqMethod: requestManager,
+    host: str,
+    port: str,
+    pathParams: Union[str, list[str], None] = None,
+    queryParams: Union[str, list[str], None] = None,
+    headers: Optional[dict] = None,
+    data: Union[dict, json.JSONEncoder, None] = None,
+    *keys
+):
+    if not isConnected(host, port):
+        return
+
+    response = reqMethod.createResponse(host, port, pathParams, queryParams, headers, data)
+    if response.status_code == 200:
+        encodedResponse = response.json()
+        result = (encodedResponse.get(key, {}) for key in keys) if keys else encodedResponse
+        return result
 
 #############################################################################################################
 

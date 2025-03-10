@@ -1,4 +1,6 @@
 import re
+import string
+import random
 import unicodedata
 import json
 import polars
@@ -61,6 +63,19 @@ def isJson(content: str):
         return True
     except:
         return False
+
+#############################################################################################################
+
+def generateRandomString(
+    amount: int = 9
+):
+    randomString = ''.join(
+        random.sample(
+            string.ascii_letters + string.digits,
+            k = amount
+        )
+    )
+    return randomString
 
 #############################################################################################################
 
