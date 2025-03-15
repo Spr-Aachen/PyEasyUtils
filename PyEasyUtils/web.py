@@ -1,8 +1,8 @@
 import os
 import platform
-import hashlib
-import urllib
 import requests
+import urllib
+import hashlib
 import json
 from tqdm import tqdm
 from packaging import version
@@ -17,7 +17,45 @@ from .cmd import runCMD
 
 #############################################################################################################
 
+class requestManager(Enum):
+    """
+    Manage request
+    """
+    Post = 0
+    Get = 1
+    #Head = 2
+
+    def request(self,
+        protocol: str = "http",
+        host: str = "127.0.0.1",
+        port: int = 8080,
+        pathParams: Union[str, list[str], None] = None,
+        queryParams: Union[str, list[str], None] = None,
+        headers: Optional[dict] = None,
+        data: Union[dict, json.JSONEncoder, None] = None,
+        **kwargs
+    ):
+        pathParams = "/".join(toIterable(pathParams) if pathParams else [])
+        queryParams = "&".join(toIterable(queryParams) if queryParams else [])
+        if self == self.Post:
+            reqMethod = 'POST'
+        if self == self.Get:
+            reqMethod = 'GET'
+        response = requests.request(
+            method = reqMethod,
+            url = f"{protocol}://{host}:{port}"
+            + (f"/{pathParams}" if len(pathParams) > 0 else "")
+            + (f"?{queryParams}" if len(queryParams) > 0 else ""),
+            headers = headers,
+            data = data if isinstance(data, json.JSONDecoder) else (json.dumps(data) if data is not None else None),
+            **kwargs
+        )
+        #assert response.status_code == 200
+        return response
+
+
 def isConnected(
+    protocol: str,
     host: str,
     port: int,
 ):
@@ -25,64 +63,40 @@ def isConnected(
     Check connection
     """
     try:
-        response = requests.get(
-            url = f"http://{host}:{port}/"
-        )
+        response = requestManager.Get.request(protocol, host, port)
         return True
-    except Exception as e:
-        print(e)
+    except requests.ConnectionError as e:
+        print(f"Connection error: {e}")
         return False
-
-
-class requestManager(Enum):
-    """
-    Manage request
-    """
-    Post = 0
-    Get = 1
-
-    def createResponse(self,
-        host: str,
-        port: str,
-        pathParams: Union[str, list[str], None] = None,
-        queryParams: Union[str, list[str], None] = None,
-        headers: Optional[dict] = None,
-        data: Union[dict, json.JSONEncoder, None] = None,
-    ):
-        if self == self.Post:
-            reqMethod = requests.post
-        if self == self.Get:
-            reqMethod = requests.get
-        pathParams = "/".join(toIterable(pathParams) if pathParams else [])
-        queryParams = "&".join(toIterable(queryParams) if queryParams else [])
-        self.response = reqMethod(
-            url = f"http://{host}:{port}"
-            + (f"/{pathParams}" if len(pathParams) > 0 else "")
-            + (f"?{queryParams}" if len(queryParams) > 0 else ""),
-            headers = headers,
-            data = data if isinstance(data, json.JSONDecoder) else (json.dumps(data) if data is not None else None)
-        )
-        return self.response
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return False
 
 
 def simpleRequest(
     reqMethod: requestManager,
+    protocol: str,
     host: str,
-    port: str,
+    port: int,
     pathParams: Union[str, list[str], None] = None,
     queryParams: Union[str, list[str], None] = None,
     headers: Optional[dict] = None,
     data: Union[dict, json.JSONEncoder, None] = None,
     *keys
 ):
-    if not isConnected(host, port):
+    if not isConnected(protocol, host, port):
         return
-
-    response = reqMethod.createResponse(host, port, pathParams, queryParams, headers, data)
-    if response.status_code == 200:
-        encodedResponse = response.json()
-        result = (encodedResponse.get(key, {}) for key in keys) if keys else encodedResponse
-        return result
+    maxRetries = 3
+    for attempt in range(maxRetries):
+        try:
+            response = reqMethod.request(protocol, host, port, pathParams, queryParams, headers, data)
+            encodedResponse = response.json()
+            result = (encodedResponse.get(key, {}) for key in keys) if keys else encodedResponse
+            return result
+        except requests.ConnectionError as e:
+            print(f"Attempt {attempt + 1} failed. Retrying..." if attempt != maxRetries - 1 else f"Connection error after {maxRetries} attempts: {e}")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
 
 #############################################################################################################
 

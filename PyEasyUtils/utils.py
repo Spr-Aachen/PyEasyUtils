@@ -56,11 +56,22 @@ def findKey(
 
 #############################################################################################################
 
+def getNamesFromMethod(
+    method: object
+):
+    """
+    Function to get qualName and methodName from classmethod
+    """
+    qualName = str(method.__qualname__)
+    methodName = qualName.split('.')[1]
+    return qualName, methodName
+
+
 def getClassFromMethod(
     method: object
 ):
     """
-    Function to get class from method
+    Function to get class from classmethod
     """
     '''
     Modules = list(inspect.getmodule(method).__dict__.values())
