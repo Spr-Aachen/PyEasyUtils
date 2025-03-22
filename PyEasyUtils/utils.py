@@ -29,30 +29,30 @@ def itemReplacer(
     """
     Function to replace item using dictionary lookup
     """
-    ItemList = toIterable(items, ignoreString = False)
+    itemList = toIterable(items, ignoreString = False)
 
-    ItemList_New = [dict.get(Item, Item) for Item in ItemList]
+    itemList_new = [dict.get(item, item) for item in itemList]
 
     if isinstance(items, list):
-        return ItemList_New
+        return itemList_new
     if isinstance(items, tuple):
-        return tuple(ItemList_New)
+        return tuple(itemList_new)
     if isinstance(items, (int, float, bool)):
-        return ItemList_New[0]
+        return itemList_new[0]
     if isinstance(items, str):
-        return str().join(ItemList_New)
+        return str().join(itemList_new)
 
 
 def findKey(
     dict: dict,
-    targetValue
+    targetValue: object
 ):
     """
     Find key from dictionary
     """
-    for Key, value in dict.items():
+    for key, value in dict.items():
         if value == targetValue:
-            return Key
+            return key
 
 #############################################################################################################
 
@@ -60,11 +60,11 @@ def getNamesFromMethod(
     method: object
 ):
     """
-    Function to get qualName and methodName from classmethod
+    Function to get className and methodName from classmethod
     """
-    qualName = str(method.__qualname__)
-    methodName = qualName.split('.')[1]
-    return qualName, methodName
+    qualName = method.__qualname__
+    className, methodName = qualName.split('.') if '.' in qualName else (None, qualName)
+    return className, methodName
 
 
 def getClassFromMethod(
@@ -73,12 +73,8 @@ def getClassFromMethod(
     """
     Function to get class from classmethod
     """
-    '''
-    Modules = list(inspect.getmodule(method).__dict__.values())
-    Modules = [Module for Module in Modules if str(Module).startswith("<class '__main__.")]
-    return Modules[-1]
-    '''
-    return inspect.getmodule(method).__dict__[method.__qualname__.split('.')[0]]
+    className = getNamesFromMethod(method)[0]
+    return inspect.getmodule(method).__dict__[className]
 
 #############################################################################################################
 
@@ -89,10 +85,10 @@ def runEvents(
     Function to run events
     """
     if isinstance(events, dict):
-        for Event, Param in events.items():
-            Event(*toIterable(Param if Param is not None else ())) if Event is not None else None
+        for event, param in events.items():
+            event(*toIterable(param if param is not None else ())) if event is not None else None
     else:
-        for Event in iter(events):
-            Event() if Event is not None else None
+        for event in iter(events):
+            event() if event is not None else None
 
 #############################################################################################################
