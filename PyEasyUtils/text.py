@@ -42,9 +42,15 @@ def findURL(
     URLList = re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|(?:%[0-9a-fA-F][0-9a-fA-F])|[!*\\(\\),])+').findall(rawString(string))
     return URLList[0] if URLList.__len__() < 2 else URLList
 
-#############################################################################################################
 
-def isUrl(content: str):
+def makeSafeForURL(string):
+    return urlparse.quote(
+        string = str(string),
+        safe = ':,[]'
+    )
+
+
+def isURL(content: str):
     """
     Check if content is a url
     """
@@ -53,6 +59,7 @@ def isUrl(content: str):
     else:
         return False
 
+#############################################################################################################
 
 def isJson(content: str):
     """
@@ -92,7 +99,7 @@ def toMarkdown(content: str):
     """
     Convert content to markdown
     """
-    if isUrl(content):
+    if isURL(content):
         content = f"[URL]({content})"
     if isJson(content):
         content = _toMarkdown(polars.DataFrame(json.loads(json.dumps(eval(content)))))

@@ -22,16 +22,16 @@ def isVersionSatisfied(
         return True
     versionReqs = versionReqs.split(',') if isinstance(versionReqs, str) else list(versionReqs)
     results = []
-    for VersionReq in versionReqs:
-        SplitVersionReq = re.split('=|>|<', VersionReq)
-        RequiredVersion = SplitVersionReq[-1]
-        Req = VersionReq[:len(VersionReq) - len(RequiredVersion)]
-        if Req == "==":
-            results.append(version.parse(currentVersion) == version.parse(RequiredVersion))
-        if Req == ">=":
-            results.append(version.parse(currentVersion) >= version.parse(RequiredVersion))
-        if Req == "<=":
-            results.append(version.parse(currentVersion) <= version.parse(RequiredVersion))
+    for versionReq in versionReqs:
+        splitVersionReq = re.split('!|=|>|<', versionReq)
+        requiredVersion = splitVersionReq[-1].strip()
+        req = versionReq[:len(versionReq) - len(splitVersionReq[-1])].strip()
+        if req == "==":
+            results.append(version.parse(currentVersion) == version.parse(requiredVersion))
+        if req == ">=":
+            results.append(version.parse(currentVersion) >= version.parse(requiredVersion))
+        if req == "<=":
+            results.append(version.parse(currentVersion) <= version.parse(requiredVersion))
         return True if False not in results else False
 
 
@@ -46,13 +46,13 @@ def isSystemSatisfied(
     systemReqs = systemReqs.split(';') if isinstance(systemReqs, str) else list(systemReqs)
     results = []
     for systemReq in systemReqs:
-        SplitsystemReq = re.split('=|>|<', systemReq)
-        RequiredSystem = SplitsystemReq[-1].strip()
-        Req = systemReq[len(SplitsystemReq[0]) : len(systemReq) - len(RequiredSystem)].strip()
-        if Req == "==":
-            results.append(sys.platform == eval(RequiredSystem))
-        if Req == "!=":
-            results.append(sys.platform != eval(RequiredSystem))
+        splitSystemReq = re.split('!|=|>|<', systemReq)
+        requiredSystem = splitSystemReq[-1].strip()
+        req = systemReq[len(splitSystemReq[0]) : len(systemReq) - len(splitSystemReq[-1])].strip()
+        if req == "==":
+            results.append(sys.platform == eval(requiredSystem))
+        if req == "!=":
+            results.append(sys.platform != eval(requiredSystem))
         return True if False not in results else False
 
 #############################################################################################################

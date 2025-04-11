@@ -4,6 +4,7 @@ import requests
 import urllib
 import hashlib
 import json
+import json_repair
 from tqdm import tqdm
 from packaging import version
 from github import Github
@@ -97,6 +98,23 @@ def simpleRequest(
             print(f"Attempt {attempt + 1} failed. Retrying..." if attempt != maxRetries - 1 else f"Connection error after {maxRetries} attempts: {e}")
         except Exception as e:
             print(f"Unexpected error: {e}")
+
+
+def responseParser(
+    response: requests.Response,
+    stream: bool = False
+):
+    if response.status_code != 200:
+        print("Warning: status code is not 200")
+    for chunk in response.iter_content(chunk_size = 1024 if stream else None, decode_unicode = False):
+        if chunk:
+            content = chunk.decode('utf-8', errors = 'ignore')
+            try:
+                parsed_content = json_repair.loads(content)
+                yield parsed_content, response.status_code
+            except:
+                print("Broken content:", content)
+                continue
 
 #############################################################################################################
 
