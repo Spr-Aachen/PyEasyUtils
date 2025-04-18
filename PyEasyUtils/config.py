@@ -16,7 +16,7 @@ class configManager:
         configPath: Optional[str] = None
     ):
         self.configParser = configparser.ConfigParser()
-        self.configPath = normPath(Path(os.getcwd()).joinpath('config_%s.ini' % datetime.now())) if configPath == None else configPath
+        self.configPath = normPath(Path(os.getcwd()).joinpath('config_%s.ini' % datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))) if configPath == None else configPath
         if Path(self.configPath).exists():
             self.configParser.read(self.configPath, encoding = 'utf-8')
         else:
@@ -41,6 +41,19 @@ class configManager:
         except:
             pass
         configParser.set(section, option, value)
+        with open(self.configPath, 'w', encoding = 'utf-8') as Config:
+            configParser.write(Config)
+
+    def remove(self,
+        section: str = ...,
+        option: Optional[str] = None,
+        configParser: Optional[configparser.ConfigParser] = None
+    ):
+        configParser = self.parser() if configParser == None else configParser
+        try:
+            configParser.remove_option(section, option) if option is not None else configParser.remove_section(section)
+        except:
+            pass
         with open(self.configPath, 'w', encoding = 'utf-8') as Config:
             configParser.write(Config)
 
