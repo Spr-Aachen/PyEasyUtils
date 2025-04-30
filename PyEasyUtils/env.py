@@ -79,13 +79,13 @@ def setEnvVar(
                     f'for /f "usebackq tokens=2,*" %A in (`reg query "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" /v "{variable}"`) do set sysVAR=%B',
                     f'setx "{variable}" "{value}{os.pathsep}%sysVAR%" /m'
                 ],
-                communicateThroughConsole = True
+                shell = True
             )
         if platform.system() == 'Linux':
             '''
             runCMD(
                 f'echo {variable}={value} >> /etc/environment',
-                communicateThroughConsole = True
+                shell = True
             )
             '''
             with open('/etc/environment', 'a') as f:
@@ -102,7 +102,7 @@ def setEnvVar(
                     f'for /f "usebackq tokens=2,*" %A in (`reg query "HKEY_CURRENT_USER\\Environment" /v "{variable}"`) do set userVAR=%B',
                     f'setx "{variable}" "{value}{os.pathsep}%userVAR%"'
                 ],
-                communicateThroughConsole = True
+                shell = True
             )
         if platform.system() == 'Linux':
             shell = os.environ.get('SHELL', '/bin/bash')

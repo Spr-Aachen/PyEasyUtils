@@ -38,7 +38,7 @@ class taskAccelerationManager(Enum):
 
 #############################################################################################################
 
-def processTerminator(
+def terminateProcess(
     program: Union[str, int],
     selfIgnored: bool = True,
     searchKeyword: bool = False
@@ -78,7 +78,7 @@ def processTerminator(
                 pass
 
 
-def occupationTerminator(
+def terminateOccupation(
     file: str,
     searchKeyword: bool = False
 ):

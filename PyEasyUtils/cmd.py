@@ -18,115 +18,99 @@ class subprocessManager:
     Manage subprocess of commands
     """
     def __init__(self,
-        communicateThroughConsole: bool = False
+        shell: bool = False
     ):
-        self.communicateThroughConsole = communicateThroughConsole
+        self.shell = shell
+
+        self.subprocesses = []
 
         self.encoding = 'gbk' if platform.system() == 'Windows' else 'utf-8'
 
-    def create(self,
-        args: Union[list[Union[list, str]], str],
-    ):
-        if not self.communicateThroughConsole:
-            for arg in toIterable(args):
-                arg = shlex.split(arg) if isinstance(arg, str) else arg
-                self.subprocess = subprocess.Popen(
-                    args = arg,
-                    stdout = subprocess.PIPE,
-                    stderr = subprocess.PIPE,
-                    env = os.environ,
-                    creationflags = subprocess.CREATE_NO_WINDOW
-                )
-
+    def _create(self, arg: Union[list, str], merge: bool):
+        if self.shell == False:
+            arg = shlex.split(arg) if isinstance(arg, str) else arg
+            process = subprocess.Popen(
+                args = arg,
+                stdout = subprocess.PIPE,
+                stderr = subprocess.STDOUT,
+                env = os.environ,
+                creationflags = subprocess.CREATE_NO_WINDOW
+            )
         else:
-            totalInput = str()
-            for arg in toIterable(args):
-                arg = shlex.join(arg) if isinstance(arg, list) else arg
-                totalInput += f'{rawString(arg)}\n'
-            self.totalInput = totalInput.encode(self.encoding, errors = 'replace')
+            arg = shlex.join(arg) if isinstance(arg, list) else arg
+            argBuffer = f'{rawString(arg)}\n'.encode(self.encoding, errors = 'replace')
             if platform.system() == 'Windows':
                 shellArgs = ['cmd']
             if platform.system() == 'Linux':
-                shellArgs = ['bash', '-c']
-            self.subprocess = subprocess.Popen(
+                shellArgs = ['bash', '-s']
+            process = subprocess.Popen(
                 args = shellArgs,
                 stdin = subprocess.PIPE,
                 stdout = subprocess.PIPE,
                 stderr = subprocess.STDOUT,
                 env = os.environ,
                 creationflags = subprocess.CREATE_NO_WINDOW
-            )
+            ) if self.subprocesses.__len__() == 0 or not merge else self.subprocesses[-1]
+            process.stdin.write(argBuffer)
+            #process.stdin.close() if not merge else None
+        self.subprocesses.append(process)
 
-        return self.subprocess
+    def create(self, args: Union[list[Union[list, str]], str], merge: bool = True):
+        for arg in toIterable(args):
+            self._create(arg, merge)
+        for process in self.subprocesses:
+            process.stdin.close()
 
-    def monitor(self,
-        showProgress: bool = False,
+    def _getOutputLines(self, subprocess: subprocess.Popen, logPath: Optional[str] = None):
+        for line in io.TextIOWrapper(subprocess.stdout, encoding = self.encoding, errors = 'replace'):
+            sys.stdout.write(line) if sys.stdout is not None else None
+            if logPath is not None:
+                with open(logPath, mode = 'a', encoding = 'utf-8') as log:
+                    log.write(line)
+            line = line.encode(self.encoding, errors = 'replace')
+            yield line
+            subprocess.stdout.flush()
+            if subprocess.poll() is not None:
+                break
+
+    def monitor(self, logPath: Optional[str] = None):
+        for process in self.subprocesses:
+            if self.shell == False:
+                for line in self._getOutputLines(process, logPath):
+                    yield line, b''
+            else:
+                for line in self._getOutputLines(process, logPath):
+                    yield line, b''
+                if process.wait() != 0:
+                    yield b'', b"error occurred, please check the logs for full command output."
+
+    def result(self,
         decodeResult: Optional[bool] = None,
         logPath: Optional[str] = None
     ):
-        if not self.communicateThroughConsole:
-            totalOutput, totalError = (bytes(), bytes())
-            if showProgress:
-                output, error = (bytes(), bytes())
-                for line in io.TextIOWrapper(self.subprocess.stdout, encoding = self.encoding, errors = 'replace'):
-                    output += line.encode(self.encoding, errors = 'replace')
-                    sys.stdout.write(line) if sys.stdout is not None else None
-                    if logPath is not None:
-                        with open(logPath, mode = 'a', encoding = 'utf-8') as Log:
-                            Log.write(line)
-                    self.subprocess.stdout.flush()
-                    if self.subprocess.poll() is not None:
-                        break
-                for line in io.TextIOWrapper(self.subprocess.stderr, encoding = self.encoding, errors = 'replace'):
-                    error += line.encode(self.encoding, errors = 'replace')
-                    sys.stderr.write(line) if sys.stderr is not None else None
-                    if logPath is not None:
-                        with open(logPath, mode = 'a', encoding = 'utf-8') as Log:
-                            Log.write(line)
-            else:
-                output, error = self.subprocess.communicate()
-                output, error = b'' if output is None else output, b'' if error is None else error
-            totalOutput, totalError = totalOutput + output, totalError + error
+        output, error = (bytes(), bytes())
+        for o, e in self.monitor(logPath):
+            output += o
+            error += e
 
-        else:
-            if showProgress:
-                totalOutput, totalError = (bytes(), bytes())
-                self.subprocess.stdin.write(self.totalInput)
-                self.subprocess.stdin.close()
-                for line in io.TextIOWrapper(self.subprocess.stdout, encoding = self.encoding, errors = 'replace'):
-                    totalOutput += line.encode(self.encoding, errors = 'replace')
-                    sys.stdout.write(line) if sys.stdout is not None else None
-                    if logPath is not None:
-                        with open(logPath, mode = 'a', encoding = 'utf-8') as Log:
-                            Log.write(line)
-                    self.subprocess.stdout.flush()
-                    if self.subprocess.poll() is not None:
-                        break
-                if self.subprocess.wait() != 0:
-                    totalError = b"error occurred, please check the logs for full command output."
-            else:
-                totalOutput, totalError = self.subprocess.communicate(self.totalInput)
-                totalOutput, totalError = b'' if totalOutput is None else totalOutput, b'' if totalError is None else totalError
+        output, error = output.strip(), error.strip()
+        output, error = output.decode(self.encoding, errors = 'ignore') if decodeResult else output, error.decode(self.encoding, errors = 'ignore') if decodeResult else error
 
-        totalOutput, totalError = totalOutput.strip(), totalError.strip()
-        totalOutput, totalError = totalOutput.decode(self.encoding, errors = 'ignore') if decodeResult else totalOutput, totalError.decode(self.encoding, errors = 'ignore') if decodeResult else totalError
-
-        return None if totalOutput in ('', b'') else totalOutput, None if totalError in ('', b'') else totalError, self.subprocess.returncode
+        return None if output in ('', b'') else output, None if error in ('', b'') else error, self.subprocesses[-1].returncode
 
 
 def runCMD(
     args: Union[list[Union[list, str]], str],
-    showProgress: bool = False,
-    communicateThroughConsole: bool = False,
+    shell: bool = False,
     decodeResult: Optional[bool] = None,
     logPath: Optional[str] = None
 ):
     """
     Run command
     """
-    manageSubprocess = subprocessManager(communicateThroughConsole)
+    manageSubprocess = subprocessManager(shell)
     manageSubprocess.create(args)
-    return manageSubprocess.monitor(showProgress, decodeResult, logPath)
+    return manageSubprocess.monitor(decodeResult, logPath)
 
 #############################################################################################################
 

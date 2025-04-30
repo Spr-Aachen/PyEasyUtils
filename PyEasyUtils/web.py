@@ -1,5 +1,6 @@
 import os
 import platform
+import socket
 import requests
 import urllib
 import hashlib
@@ -15,6 +16,38 @@ from typing import Union, Optional, Tuple
 from .utils import toIterable
 from .path import normPath
 from .cmd import runCMD
+
+#############################################################################################################
+
+def isPortAvailable(port: int, host: str = '127.0.0.1', protocol: str = 'tcp'):
+    """
+    检查指定端口是否可用
+    """
+    if protocol == 'tcp':
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    elif protocol == 'udp':
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    else:
+        raise ValueError("Protocol must be 'tcp' or 'udp'")
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.bind((host, port))
+        sock.close()
+        return True
+    except (socket.error, OSError):
+        return False
+
+
+def findAvailablePorts(port_range: tuple, host: str = '127.0.0.1', protocol: str = 'tcp'):
+    """
+    查找可用端口
+    """
+    available_ports = []
+    port_range = (port_range, port_range + 1) if isinstance(port_range, int) else (port_range[0], port_range[1] + 1)
+    for port in range(*port_range):
+        if isPortAvailable(port, host, protocol):
+                available_ports.append(port)
+    return available_ports
 
 #############################################################################################################
 
@@ -36,8 +69,8 @@ class requestManager(Enum):
         data: Union[dict, json.JSONEncoder, None] = None,
         **kwargs
     ):
-        pathParams = "/".join(toIterable(pathParams) if pathParams else [])
-        queryParams = "&".join(toIterable(queryParams) if queryParams else [])
+        pathParams = "/".join([str(pathParam) for pathParam in toIterable(pathParams)] if pathParams else [])
+        queryParams = "&".join([str(queryParam) for queryParam in toIterable(queryParams)] if queryParams else [])
         if self == self.Post:
             reqMethod = 'POST'
         if self == self.Get:
