@@ -8,4 +8,4 @@ from .cmd import subprocessManager, runCMD, runScript, bootWithScript
 from .env import isVersionSatisfied, isSystemSatisfied, setEnvVar
 from .config import configManager
 from .database import sqliteManager
-from .web import isPortAvailable, findAvailablePorts, freePort, requestManager, isConnected, simpleRequest, responseParser, downloadFile, checkUpdateFromGithub
+from .web import isPortAvailable, findAvailablePorts, freePort, requestManager, simpleRequest, responseParser, downloadFile, checkUpdateFromGithub

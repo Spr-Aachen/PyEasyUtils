@@ -1,7 +1,7 @@
 import os
 import psutil
 import signal
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, Future
 from enum import Enum
 from typing import Union, Optional
 
@@ -16,11 +16,11 @@ class taskAccelerationManager(Enum):
     ThreadPool = 0
     ProcessPool = 1
 
-    def createPool(self, 
+    def create(self, 
         funcDict: dict,
         asynchronous: bool = True,
         maxWorkers: Optional[int] = None
-    ) -> Union[ThreadPoolExecutor, ProcessPoolExecutor]:
+    ) -> list[Future]:
         if self == self.ThreadPool:
             executor = ThreadPoolExecutor(maxWorkers)
         if self == self.ProcessPool:
@@ -34,7 +34,7 @@ class taskAccelerationManager(Enum):
             except Exception as e:
                 executor.shutdown(wait = False, cancel_futures = True)
                 raise e
-        return executor
+        return futures
 
 #############################################################################################################
 

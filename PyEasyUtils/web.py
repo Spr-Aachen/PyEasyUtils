@@ -1,5 +1,6 @@
 import os
 import platform
+import random
 import socket
 import requests
 import urllib
@@ -21,7 +22,7 @@ from .cmd import runCMD
 
 def isPortAvailable(port: int, host: str = '127.0.0.1', protocol: str = 'tcp'):
     """
-    检查指定端口是否可用
+    Check whether port is available
     """
     if protocol == 'tcp':
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -40,7 +41,7 @@ def isPortAvailable(port: int, host: str = '127.0.0.1', protocol: str = 'tcp'):
 
 def findAvailablePorts(port_range: tuple, host: str = '127.0.0.1', protocol: str = 'tcp'):
     """
-    查找可用端口
+    Find available ports
     """
     available_ports = []
     port_range = (port_range, port_range + 1) if isinstance(port_range, int) else (port_range[0], port_range[1] + 1)
@@ -48,6 +49,18 @@ def findAvailablePorts(port_range: tuple, host: str = '127.0.0.1', protocol: str
         if isPortAvailable(port, host, protocol):
                 available_ports.append(port)
     return available_ports
+
+
+def freePort(port: int):
+    """
+    Free port
+    """
+    if isPortAvailable(port):
+        return
+    netStat = runCMD('netstat -aon|findstr "%s"' % port)
+    for line in str(netStat).splitlines():
+        line = line.strip()
+        runCMD(f'taskkill /T /F /PID {line.split(" ")[-1]}') if line.startswith("TCP") else None
 
 #############################################################################################################
 
@@ -88,25 +101,6 @@ class requestManager(Enum):
         return response
 
 
-def isConnected(
-    protocol: str,
-    host: str,
-    port: int,
-):
-    """
-    Check connection
-    """
-    try:
-        response = requestManager.Get.request(protocol, host, port)
-        return True
-    except requests.ConnectionError as e:
-        print(f"Connection error: {e}")
-        return False
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        return False
-
-
 def simpleRequest(
     reqMethod: requestManager,
     protocol: str,
@@ -118,19 +112,10 @@ def simpleRequest(
     data: Union[dict, json.JSONEncoder, None] = None,
     *keys
 ):
-    if not isConnected(protocol, host, port):
-        return
-    maxRetries = 3
-    for attempt in range(maxRetries):
-        try:
-            response = reqMethod.request(protocol, host, port, pathParams, queryParams, headers, data)
-            encodedResponse = response.json()
-            result = (encodedResponse.get(key, {}) for key in keys) if keys else encodedResponse
-            return result
-        except requests.ConnectionError as e:
-            print(f"Attempt {attempt + 1} failed. Retrying..." if attempt != maxRetries - 1 else f"Connection error after {maxRetries} attempts: {e}")
-        except Exception as e:
-            print(f"Unexpected error: {e}")
+    with reqMethod.request(protocol, host, port, pathParams, queryParams, headers, data) as response:
+        encodedResponse = response.json()
+        result = (encodedResponse.get(key, {}) for key in keys) if keys else encodedResponse
+        return result
 
 
 def responseParser(
