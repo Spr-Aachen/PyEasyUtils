@@ -5,7 +5,7 @@ import io
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, List
 
 from .utils import toIterable
 from .path import normPath, getFileInfo
@@ -18,15 +18,16 @@ class subprocessManager:
     Manage subprocess of commands
     """
     def __init__(self,
-        shell: bool = False
+        shell: bool = False,
+        encoding: Optional[str] = None,
     ):
         self.shell = shell
 
-        self.subprocesses = []
+        self.subprocesses: List[subprocess.Popen] = []
 
-        self.encoding = 'gbk' if platform.system() == 'Windows' else 'utf-8'
+        self.encoding = encoding or ('gbk' if platform.system() == 'Windows' else 'utf-8')
 
-    def _create(self, arg: Union[list, str], merge: bool):
+    def _create(self, arg: Union[List[str], str], merge: bool):
         if self.shell == False:
             arg = shlex.split(arg) if isinstance(arg, str) else arg
             process = subprocess.Popen(
@@ -34,7 +35,8 @@ class subprocessManager:
                 stdout = subprocess.PIPE,
                 stderr = subprocess.STDOUT,
                 env = os.environ,
-                creationflags = subprocess.CREATE_NO_WINDOW
+                creationflags = subprocess.CREATE_NO_WINDOW,
+                text = False,
             )
         else:
             arg = shlex.join(arg) if isinstance(arg, list) else arg
@@ -49,17 +51,18 @@ class subprocessManager:
                 stdout = subprocess.PIPE,
                 stderr = subprocess.STDOUT,
                 env = os.environ,
-                creationflags = subprocess.CREATE_NO_WINDOW
+                creationflags = subprocess.CREATE_NO_WINDOW,
+                text = False,
             ) if self.subprocesses.__len__() == 0 or not merge else self.subprocesses[-1]
             process.stdin.write(argBuffer)
-            #process.stdin.close() if not merge else None
+            process.stdin.flush() #process.stdin.close() if not merge else None
         self.subprocesses.append(process)
 
     def create(self, args: Union[list[Union[list, str]], str], merge: bool = True):
         for arg in toIterable(args):
             self._create(arg, merge)
         for process in self.subprocesses:
-            process.stdin.close()
+            process.stdin.close() if process.poll() is not None else None
 
     def _getOutputLines(self, subprocess: subprocess.Popen, logPath: Optional[str] = None):
         for line in io.TextIOWrapper(subprocess.stdout, encoding = self.encoding, errors = 'replace'):
@@ -101,6 +104,7 @@ class subprocessManager:
 
 def runCMD(
     args: Union[list[Union[list, str]], str],
+    merge: bool = True,
     shell: bool = False,
     decodeResult: Optional[bool] = None,
     logPath: Optional[str] = None
@@ -109,8 +113,15 @@ def runCMD(
     Run command
     """
     manageSubprocess = subprocessManager(shell)
-    manageSubprocess.create(args)
-    return manageSubprocess.monitor(decodeResult, logPath)
+    manageSubprocess.create(args, merge)
+    return manageSubprocess.result(decodeResult, logPath)
+
+#############################################################################################################
+
+def mkPyFileCommand(filePath: str, **kwargs):
+    pythonExec = sys.executable or "python"
+    args = " ".join([f"--{name} {value}" for name, value in kwargs.items()])
+    return '"%s" "%s" %s' % (pythonExec, filePath, args)
 
 #############################################################################################################
 
