@@ -27,7 +27,7 @@ class subprocessManager:
 
         self.encoding = encoding or ('gbk' if platform.system() == 'Windows' else 'utf-8')
 
-    def _create(self, arg: Union[List[str], str], merge: bool):
+    def _create(self, arg: Union[List[str], str], merge: bool, env: Optional[os._Environ] = None):
         if self.shell == False:
             arg = shlex.split(arg) if isinstance(arg, str) else arg
             process = subprocess.Popen(
@@ -50,7 +50,7 @@ class subprocessManager:
                 stdin = subprocess.PIPE,
                 stdout = subprocess.PIPE,
                 stderr = subprocess.STDOUT,
-                env = os.environ,
+                env = env,
                 creationflags = subprocess.CREATE_NO_WINDOW,
                 text = False,
             ) if self.subprocesses.__len__() == 0 or not merge else self.subprocesses[-1]
@@ -58,9 +58,9 @@ class subprocessManager:
             process.stdin.flush() #process.stdin.close() if not merge else None
         self.subprocesses.append(process)
 
-    def create(self, args: Union[list[Union[list, str]], str], merge: bool = True):
+    def create(self, args: Union[list[Union[list, str]], str], merge: bool = True, env: Optional[os._Environ] = None):
         for arg in toIterable(args):
-            self._create(arg, merge)
+            self._create(arg, merge, env)
         for process in self.subprocesses:
             process.stdin.close() if process.poll() is not None else None
 
@@ -106,13 +106,14 @@ def runCMD(
     args: Union[list[Union[list, str]], str],
     merge: bool = True,
     shell: bool = False,
+    env: Optional[os._Environ] = None,
     decodeResult: Optional[bool] = None,
     logPath: Optional[str] = None
 ):
     """
     Run command
     """
-    manageSubprocess = subprocessManager(shell)
+    manageSubprocess = subprocessManager(shell, env)
     manageSubprocess.create(args, merge)
     return manageSubprocess.result(decodeResult, logPath)
 

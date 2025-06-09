@@ -12,7 +12,7 @@ from packaging import version
 from github import Github
 from pathlib import Path
 from enum import Enum
-from typing import Union, Optional, Tuple
+from typing import Union, Optional, Tuple, Any
 
 from .utils import toIterable
 from .path import normPath
@@ -79,7 +79,7 @@ class requestManager(Enum):
         pathParams: Union[str, list[str], None] = None,
         queryParams: Union[str, list[str], None] = None,
         headers: Optional[dict] = None,
-        data: Union[dict, json.JSONEncoder, None] = None,
+        data: Any = None,
         **kwargs
     ):
         pathParams = "/".join([str(pathParam) for pathParam in toIterable(pathParams)] if pathParams else [])
@@ -94,7 +94,7 @@ class requestManager(Enum):
             + (f"/{pathParams}" if len(pathParams) > 0 else "")
             + (f"?{queryParams}" if len(queryParams) > 0 else ""),
             headers = headers,
-            data = data if isinstance(data, json.JSONDecoder) else (json.dumps(data) if data is not None else None),
+            data = data if isinstance(data, str) else (json.dumps(data) if data is not None else None),
             **kwargs
         )
         #assert response.status_code == 200
@@ -109,12 +109,12 @@ def simpleRequest(
     pathParams: Union[str, list[str], None] = None,
     queryParams: Union[str, list[str], None] = None,
     headers: Optional[dict] = None,
-    data: Union[dict, json.JSONEncoder, None] = None,
+    data: Any = None,
     *keys
 ):
     with reqMethod.request(protocol, host, port, pathParams, queryParams, headers, data) as response:
         encodedResponse = response.json()
-        result = (encodedResponse.get(key, {}) for key in keys) if keys else encodedResponse
+        result = tuple([encodedResponse.get(key, {}) for key in keys]) if keys else encodedResponse
         return result
 
 
