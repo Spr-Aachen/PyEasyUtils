@@ -6,7 +6,6 @@ import requests
 import urllib
 import hashlib
 import json
-import json_repair
 from tqdm import tqdm
 from packaging import version
 from github import Github
@@ -120,19 +119,23 @@ def simpleRequest(
 
 def responseParser(
     response: requests.Response,
-    stream: bool = False
+    stream: bool = False,
+    #isJSON: bool = False,
 ):
     if response.status_code != 200:
         print("Warning: status code is not 200")
     for chunk in response.iter_content(chunk_size = 1024 if stream else None, decode_unicode = False):
         if chunk:
             content = chunk.decode('utf-8', errors = 'ignore')
+            '''
             try:
-                parsed_content = json_repair.loads(content)
+                parsed_content = json_repair.loads(content) if isJSON else content
                 yield parsed_content, response.status_code
             except:
                 print("Broken content:", content)
                 continue
+            '''
+            yield content, response.status_code
 
 #############################################################################################################
 

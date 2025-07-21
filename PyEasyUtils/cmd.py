@@ -1,15 +1,14 @@
 import os
 import sys
 import platform
-import io
 import shlex
 import subprocess
+import asyncio
 from pathlib import Path
 from typing import Union, Optional, List
 
 from .utils import toIterable
 from .path import normPath, getFileInfo
-from .text import rawString
 
 #############################################################################################################
 
@@ -25,7 +24,8 @@ class subprocessManager:
 
         self.subprocesses: List[subprocess.Popen] = []
 
-        self.encoding = encoding or ('gbk' if platform.system() == 'Windows' else 'utf-8')
+        self.isWindowsSystem = platform.system() == 'Windows'
+        self.encoding = encoding or ('gbk' if self.isWindowsSystem else 'utf-8')
 
     def _create(self, arg: Union[List[str], str], merge: bool, env: Optional[os._Environ] = None):
         if self.shell == False:
@@ -35,12 +35,12 @@ class subprocessManager:
                 stdout = subprocess.PIPE,
                 stderr = subprocess.STDOUT,
                 env = os.environ,
-                creationflags = subprocess.CREATE_NO_WINDOW,
+                creationflags = subprocess.CREATE_NO_WINDOW if self.isWindowsSystem else 0,
                 text = False,
             )
         else:
             arg = shlex.join(arg) if isinstance(arg, list) else arg
-            argBuffer = f'{rawString(arg)}\n'.encode(self.encoding, errors = 'replace')
+            argBuffer = (f'{arg}\n' if not arg.endswith('\n') else arg).encode(self.encoding)
             if platform.system() == 'Windows':
                 shellArgs = ['cmd']
             if platform.system() == 'Linux':
@@ -51,7 +51,7 @@ class subprocessManager:
                 stdout = subprocess.PIPE,
                 stderr = subprocess.STDOUT,
                 env = env,
-                creationflags = subprocess.CREATE_NO_WINDOW,
+                creationflags = subprocess.CREATE_NO_WINDOW if self.isWindowsSystem else 0,
                 text = False,
             ) if self.subprocesses.__len__() == 0 or not merge else self.subprocesses[-1]
             process.stdin.write(argBuffer)
@@ -62,30 +62,29 @@ class subprocessManager:
         for arg in toIterable(args):
             self._create(arg, merge, env)
         for process in self.subprocesses:
-            process.stdin.close() if process.poll() is not None else None
+            process.stdin.close() if process.stdin and process.poll() is not None else None
 
-    def _getOutputLines(self, subprocess: subprocess.Popen, logPath: Optional[str] = None):
-        for line in io.TextIOWrapper(subprocess.stdout, encoding = self.encoding, errors = 'replace'):
-            sys.stdout.write(line) if sys.stdout is not None else None
+    def _getOutputLines(self, subprocess: subprocess.Popen, showProgress: bool = True, logPath: Optional[str] = None):
+        while True:
+            line = subprocess.stdout.readline()
+            if not line:
+                break
+            lineString = line.decode(self.encoding, errors = 'replace')
+            sys.stdout.write(lineString) if showProgress and sys.stdout is not None else None
             if logPath is not None:
                 with open(logPath, mode = 'a', encoding = 'utf-8') as log:
-                    log.write(line)
-            line = line.encode(self.encoding, errors = 'replace')
+                    log.write(lineString)
             yield line
-            subprocess.stdout.flush()
             if subprocess.poll() is not None:
                 break
 
-    def monitor(self, logPath: Optional[str] = None):
+    def monitor(self, showProgress: bool = True, logPath: Optional[str] = None):
         for process in self.subprocesses:
-            if self.shell == False:
-                for line in self._getOutputLines(process, logPath):
-                    yield line, b''
-            else:
-                for line in self._getOutputLines(process, logPath):
-                    yield line, b''
-                if process.wait() != 0:
-                    yield b'', b"error occurred, please check the logs for full command output."
+            for line in self._getOutputLines(process, showProgress, logPath):
+                yield line, b''
+            process.wait()
+            if process.returncode != 0:
+                yield b'', b"error occurred, please check the logs for full command output."
 
     def result(self,
         decodeResult: Optional[bool] = None,
@@ -116,6 +115,81 @@ def runCMD(
     manageSubprocess = subprocessManager(shell, env)
     manageSubprocess.create(args, merge)
     return manageSubprocess.result(decodeResult, logPath)
+
+
+class asyncSubprocessManager:
+    """
+    Manage subprocess of commands (async version)
+    """
+    def __init__(self,
+        shell: bool = False,
+        encoding: Optional[str] = None,
+    ):
+        self.shell = shell
+
+        self.subprocesses: List[asyncio.subprocess.Process] = []
+
+        self.isWindowsSystem = platform.system() == 'Windows'
+        self.encoding = encoding or ('gbk' if self.isWindowsSystem else 'utf-8')
+
+    async def _create(self, arg: Union[List[str], str], merge: bool, env: Optional[os._Environ] = None):
+        if self.shell == False:
+            arg = shlex.split(arg) if isinstance(arg, str) else arg
+            process = await asyncio.create_subprocess_exec(
+                *arg,
+                stdout = asyncio.subprocess.PIPE,
+                stderr = asyncio.subprocess.STDOUT,
+                env = os.environ,
+                creationflags = subprocess.CREATE_NO_WINDOW if self.isWindowsSystem else 0,
+                text = False,
+            )
+        else:
+            arg = shlex.join(arg) if isinstance(arg, list) else arg
+            argBuffer = (f'{arg}\n' if not arg.endswith('\n') else arg).encode(self.encoding)
+            if platform.system() == 'Windows':
+                shellArgs = ['cmd']
+            if platform.system() == 'Linux':
+                shellArgs = ['bash', '-s']
+            process = await asyncio.create_subprocess_exec(
+                *shellArgs,
+                stdin = asyncio.subprocess.PIPE,
+                stdout = asyncio.subprocess.PIPE,
+                stderr = asyncio.subprocess.STDOUT,
+                env = env,
+                creationflags = subprocess.CREATE_NO_WINDOW if self.isWindowsSystem else 0,
+                text = False,
+            ) if self.subprocesses.__len__() == 0 or not merge else self.subprocesses[-1]
+            process.stdin.write(argBuffer)
+            await process.stdin.drain()
+        self.subprocesses.append(process)
+
+    async def create(self, args: Union[list[Union[list, str]], str], merge: bool = True, env: Optional[os._Environ] = None):
+        for arg in toIterable(args):
+            await self._create(arg, merge, env)
+        for process in self.subprocesses:
+            process.stdin.close() if process.stdin and process.returncode is not None else None
+
+    async def _getOutputLines(self, process: asyncio.subprocess.Process, showProgress: bool = True, logPath: Optional[str] = None):
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+            lineString = line.decode(self.encoding, errors = 'replace')
+            sys.stdout.write(lineString) if showProgress and sys.stdout is not None else None
+            if logPath is not None:
+                with open(logPath, mode = 'a', encoding = 'utf-8') as log:
+                    log.write(lineString)
+            yield line
+            if process.returncode is not None:
+                break
+
+    async def monitor(self, showProgress: bool = True, logPath: Optional[str] = None):
+        for process in self.subprocesses:
+            async for line in self._getOutputLines(process, showProgress, logPath):
+                yield line, b''
+            await process.wait()
+            if process.returncode != 0:
+                yield b'', b"error occurred, please check the logs for full command output."
 
 #############################################################################################################
 
