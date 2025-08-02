@@ -55,14 +55,17 @@ class subprocessManager:
                 text = False,
             ) if self.subprocesses.__len__() == 0 or not merge else self.subprocesses[-1]
             process.stdin.write(argBuffer)
-            process.stdin.flush() #process.stdin.close() if not merge else None
+            process.stdin.flush()
         self.subprocesses.append(process)
 
     def create(self, args: Union[list[Union[list, str]], str], merge: bool = True, env: Optional[os._Environ] = None):
         for arg in toIterable(args):
             self._create(arg, merge, env)
-        for process in self.subprocesses:
-            process.stdin.close() if process.stdin and process.poll() is not None else None
+            process = self.subprocesses[-1]
+            if self.shell == False:
+                process.stdin.close()
+            else:
+                process.stdin.close() if (merge and self.subprocesses.__len__() == toIterable(args).__len__()) or not merge else None
 
     def _getOutputLines(self, subprocess: subprocess.Popen, showProgress: bool = True, logPath: Optional[str] = None):
         while True:
@@ -88,10 +91,11 @@ class subprocessManager:
 
     def result(self,
         decodeResult: Optional[bool] = None,
+        showProgress: bool = True,
         logPath: Optional[str] = None
     ):
         output, error = (bytes(), bytes())
-        for o, e in self.monitor(logPath):
+        for o, e in self.monitor(showProgress, logPath):
             output += o
             error += e
 
@@ -107,14 +111,15 @@ def runCMD(
     shell: bool = False,
     env: Optional[os._Environ] = None,
     decodeResult: Optional[bool] = None,
+    showProgress: bool = True,
     logPath: Optional[str] = None
 ):
     """
     Run command
     """
-    manageSubprocess = subprocessManager(shell, env)
-    manageSubprocess.create(args, merge)
-    return manageSubprocess.result(decodeResult, logPath)
+    manageSubprocess = subprocessManager(shell)
+    manageSubprocess.create(args, merge, env)
+    return manageSubprocess.result(decodeResult, showProgress, logPath)
 
 
 class asyncSubprocessManager:
@@ -166,8 +171,11 @@ class asyncSubprocessManager:
     async def create(self, args: Union[list[Union[list, str]], str], merge: bool = True, env: Optional[os._Environ] = None):
         for arg in toIterable(args):
             await self._create(arg, merge, env)
-        for process in self.subprocesses:
-            process.stdin.close() if process.stdin and process.returncode is not None else None
+            process = self.subprocesses[-1]
+            if self.shell == False:
+                process.stdin.close()
+            else:
+                process.stdin.close() if (merge and self.subprocesses.__len__() == toIterable(args).__len__()) or not merge else None
 
     async def _getOutputLines(self, process: asyncio.subprocess.Process, showProgress: bool = True, logPath: Optional[str] = None):
         while True:
@@ -194,9 +202,9 @@ class asyncSubprocessManager:
 #############################################################################################################
 
 def mkPyFileCommand(filePath: str, **kwargs):
-    pythonExec = sys.executable or "python"
     args = " ".join([f"--{name} {value}" for name, value in kwargs.items()])
-    return '"%s" "%s" %s' % (pythonExec, filePath, args)
+    command = 'python "%s" %s' % (filePath, args)
+    return command
 
 #############################################################################################################
 
