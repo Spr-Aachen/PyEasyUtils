@@ -1,3 +1,6 @@
+import os
+import locale
+import codecs
 import re
 import string
 import random
@@ -6,6 +9,49 @@ import json
 import polars
 import urllib.parse as urlparse
 from typing import Optional
+
+#############################################################################################################
+
+def getSystemEncoding(
+    default = 'utf-8'
+):
+    """
+    Get current system's encoding
+    """
+    try:
+        # Get system encoding
+        encoding = locale.getpreferredencoding(do_setlocale = False).lower()
+        # Handle empty or invalid encodings
+        if encoding in ['ansi_x3.4-1968', 'us-ascii', 'c', 'posix']:
+            for env_var in ['LC_ALL', 'LC_CTYPE', 'LANG']:
+                lang_env = os.environ.get(env_var)
+                if lang_env and '.' in lang_env:
+                    encoding_env = lang_env.split('.')[-1]
+                    if encoding_env and encoding_env.upper() != 'UTF-8':
+                        if '@' in encoding_env:
+                            encoding_env = encoding_env.split('@')[0]
+                        encoding = encoding_env.lower()
+                        break
+        encodingMap  = {
+            'utf8': 'utf-8',
+            'utf16': 'utf-16',
+            'utf32': 'utf-32',
+            'latin1': 'latin-1',
+            'cp936': 'gbk',
+            'cp950': 'big5',
+            'cp65001': 'utf-8',
+            'cp1252': 'windows-1252',
+            'iso8859_1': 'latin-1',
+        }
+        encoding = encodingMap.get(encoding, encoding)
+        # Verify if the encoding is available
+        codecs.lookup(encoding)
+
+    except (LookupError, TypeError, AttributeError, ValueError):
+        # Use default encoding
+        encoding = default
+
+    return encoding
 
 #############################################################################################################
 

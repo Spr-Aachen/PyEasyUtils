@@ -1,6 +1,5 @@
 import os
 import platform
-import random
 import socket
 import requests
 import urllib
@@ -15,6 +14,7 @@ from typing import Union, Optional, Tuple, Any
 
 from .utils import toIterable
 from .path import normPath
+from .text import getSystemEncoding
 from .cmd import runCMD
 
 #############################################################################################################
@@ -79,6 +79,7 @@ class requestManager(Enum):
         queryParams: Union[str, list[str], None] = None,
         headers: Optional[dict] = None,
         data: Any = None,
+        stream: bool = False,
         **kwargs
     ):
         pathParams = "/".join([str(pathParam) for pathParam in toIterable(pathParams)] if pathParams else [])
@@ -94,6 +95,7 @@ class requestManager(Enum):
             + (f"?{queryParams}" if len(queryParams) > 0 else ""),
             headers = headers,
             data = data if isinstance(data, str) else (json.dumps(data) if data is not None else None),
+            stream = stream,
             **kwargs
         )
         #assert response.status_code == 200
@@ -109,9 +111,10 @@ def simpleRequest(
     queryParams: Union[str, list[str], None] = None,
     headers: Optional[dict] = None,
     data: Any = None,
+    stream: bool = False,
     *keys
 ):
-    with reqMethod.request(protocol, host, port, pathParams, queryParams, headers, data) as response:
+    with reqMethod.request(protocol, host, port, pathParams, queryParams, headers, data, stream) as response:
         encodedResponse = response.json()
         result = tuple([encodedResponse.get(key, {}) for key in keys]) if keys else encodedResponse
         return result
@@ -120,13 +123,15 @@ def simpleRequest(
 def responseParser(
     response: requests.Response,
     stream: bool = False,
+    decodeUnicode: bool = False,
+    encoding: Optional[str] = None,
     #isJSON: bool = False,
 ):
     if response.status_code != 200:
         print("Warning: status code is not 200")
     for chunk in response.iter_content(chunk_size = 1024 if stream else None, decode_unicode = False):
         if chunk:
-            content = chunk.decode('utf-8', errors = 'ignore')
+            content = chunk.decode(encoding or getSystemEncoding(), errors = 'replace') if decodeUnicode and isinstance(chunk, bytes) else chunk
             '''
             try:
                 parsed_content = json_repair.loads(content) if isJSON else content

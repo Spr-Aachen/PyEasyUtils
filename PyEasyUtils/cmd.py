@@ -9,6 +9,7 @@ from typing import Union, Optional, List
 
 from .utils import toIterable
 from .path import normPath, getFileInfo
+from .text import getSystemEncoding
 
 #############################################################################################################
 
@@ -25,7 +26,7 @@ class subprocessManager:
         self.subprocesses: List[subprocess.Popen] = []
 
         self.isWindowsSystem = platform.system() == 'Windows'
-        self.encoding = encoding or ('gbk' if self.isWindowsSystem else 'utf-8')
+        self.encoding = encoding or getSystemEncoding()
 
     def _create(self, arg: Union[List[str], str], merge: bool, env: Optional[os._Environ] = None):
         if self.shell == False:
@@ -72,12 +73,12 @@ class subprocessManager:
             line = subprocess.stdout.readline()
             if not line:
                 break
+            yield line
             lineString = line.decode(self.encoding, errors = 'replace')
             sys.stdout.write(lineString) if showProgress and sys.stdout is not None else None
             if logPath is not None:
                 with open(logPath, mode = 'a', encoding = 'utf-8') as log:
                     log.write(lineString)
-            yield line
             if subprocess.poll() is not None:
                 break
 
@@ -135,7 +136,7 @@ class asyncSubprocessManager:
         self.subprocesses: List[asyncio.subprocess.Process] = []
 
         self.isWindowsSystem = platform.system() == 'Windows'
-        self.encoding = encoding or ('gbk' if self.isWindowsSystem else 'utf-8')
+        self.encoding = encoding or getSystemEncoding()
 
     async def _create(self, arg: Union[List[str], str], merge: bool, env: Optional[os._Environ] = None):
         if self.shell == False:
@@ -182,12 +183,12 @@ class asyncSubprocessManager:
             line = await process.stdout.readline()
             if not line:
                 break
+            yield line
             lineString = line.decode(self.encoding, errors = 'replace')
             sys.stdout.write(lineString) if showProgress and sys.stdout is not None else None
             if logPath is not None:
                 with open(logPath, mode = 'a', encoding = 'utf-8') as log:
                     log.write(lineString)
-            yield line
             if process.returncode is not None:
                 break
 

@@ -2,7 +2,6 @@ import os
 import sys
 import platform
 import re
-import sys
 from packaging import version
 
 from .text import rawString
