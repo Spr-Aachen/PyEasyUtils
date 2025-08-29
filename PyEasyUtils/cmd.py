@@ -13,116 +13,6 @@ from .text import getSystemEncoding
 
 #############################################################################################################
 
-class subprocessManager:
-    """
-    Manage subprocess of commands
-    """
-    def __init__(self,
-        shell: bool = False,
-        encoding: Optional[str] = None,
-    ):
-        self.shell = shell
-
-        self.subprocesses: List[subprocess.Popen] = []
-
-        self.isWindowsSystem = platform.system() == 'Windows'
-        self.encoding = encoding or getSystemEncoding()
-
-    def _create(self, arg: Union[List[str], str], merge: bool, env: Optional[os._Environ] = None):
-        if self.shell == False:
-            arg = shlex.split(arg) if isinstance(arg, str) else arg
-            process = subprocess.Popen(
-                args = arg,
-                stdout = subprocess.PIPE,
-                stderr = subprocess.STDOUT,
-                env = os.environ,
-                creationflags = subprocess.CREATE_NO_WINDOW if self.isWindowsSystem else 0,
-                text = False,
-            )
-        else:
-            arg = shlex.join(arg) if isinstance(arg, list) else arg
-            argBuffer = (f'{arg}\n' if not arg.endswith('\n') else arg).encode(self.encoding)
-            if platform.system() == 'Windows':
-                shellArgs = ['cmd']
-            if platform.system() == 'Linux':
-                shellArgs = ['bash', '-s']
-            process = subprocess.Popen(
-                args = shellArgs,
-                stdin = subprocess.PIPE,
-                stdout = subprocess.PIPE,
-                stderr = subprocess.STDOUT,
-                env = env,
-                creationflags = subprocess.CREATE_NO_WINDOW if self.isWindowsSystem else 0,
-                text = False,
-            ) if self.subprocesses.__len__() == 0 or not merge else self.subprocesses[-1]
-            process.stdin.write(argBuffer)
-            process.stdin.flush()
-        self.subprocesses.append(process)
-
-    def create(self, args: Union[list[Union[list, str]], str], merge: bool = True, env: Optional[os._Environ] = None):
-        for arg in toIterable(args):
-            self._create(arg, merge, env)
-            process = self.subprocesses[-1]
-            if self.shell == False:
-                process.stdin.close()
-            else:
-                process.stdin.close() if (merge and self.subprocesses.__len__() == toIterable(args).__len__()) or not merge else None
-
-    def _getOutputLines(self, subprocess: subprocess.Popen, showProgress: bool = True, logPath: Optional[str] = None):
-        while True:
-            line = subprocess.stdout.readline()
-            if not line:
-                break
-            yield line
-            lineString = line.decode(self.encoding, errors = 'replace')
-            sys.stdout.write(lineString) if showProgress and sys.stdout is not None else None
-            if logPath is not None:
-                with open(logPath, mode = 'a', encoding = 'utf-8') as log:
-                    log.write(lineString)
-            if subprocess.poll() is not None:
-                break
-
-    def monitor(self, showProgress: bool = True, logPath: Optional[str] = None):
-        for process in self.subprocesses:
-            for line in self._getOutputLines(process, showProgress, logPath):
-                yield line, b''
-            process.wait()
-            if process.returncode != 0:
-                yield b'', b"error occurred, please check the logs for full command output."
-
-    def result(self,
-        decodeResult: Optional[bool] = None,
-        showProgress: bool = True,
-        logPath: Optional[str] = None
-    ):
-        output, error = (bytes(), bytes())
-        for o, e in self.monitor(showProgress, logPath):
-            output += o
-            error += e
-
-        output, error = output.strip(), error.strip()
-        output, error = output.decode(self.encoding, errors = 'ignore') if decodeResult else output, error.decode(self.encoding, errors = 'ignore') if decodeResult else error
-
-        return None if output in ('', b'') else output, None if error in ('', b'') else error, self.subprocesses[-1].returncode
-
-
-def runCMD(
-    args: Union[list[Union[list, str]], str],
-    merge: bool = True,
-    shell: bool = False,
-    env: Optional[os._Environ] = None,
-    decodeResult: Optional[bool] = None,
-    showProgress: bool = True,
-    logPath: Optional[str] = None
-):
-    """
-    Run command
-    """
-    manageSubprocess = subprocessManager(shell)
-    manageSubprocess.create(args, merge, env)
-    return manageSubprocess.result(decodeResult, showProgress, logPath)
-
-
 class asyncSubprocessManager:
     """
     Manage subprocess of commands (async version)
@@ -132,11 +22,12 @@ class asyncSubprocessManager:
         encoding: Optional[str] = None,
     ):
         self.shell = shell
+        self.encoding = encoding or getSystemEncoding()
 
         self.subprocesses: List[asyncio.subprocess.Process] = []
 
         self.isWindowsSystem = platform.system() == 'Windows'
-        self.encoding = encoding or getSystemEncoding()
+        #asyncio.set_event_loop(asyncio.ProactorEventLoop()) if self.isWindowsSystem and isinstance(asyncio.get_event_loop(), asyncio.SelectorEventLoop) else None
 
     async def _create(self, arg: Union[List[str], str], merge: bool, env: Optional[os._Environ] = None):
         if self.shell == False:
@@ -174,7 +65,7 @@ class asyncSubprocessManager:
             await self._create(arg, merge, env)
             process = self.subprocesses[-1]
             if self.shell == False:
-                process.stdin.close()
+                pass
             else:
                 process.stdin.close() if (merge and self.subprocesses.__len__() == toIterable(args).__len__()) or not merge else None
 
@@ -199,6 +90,95 @@ class asyncSubprocessManager:
             await process.wait()
             if process.returncode != 0:
                 yield b'', b"error occurred, please check the logs for full command output."
+
+    async def close(self):
+        for process in self.subprocesses:
+            try:
+                if process.returncode is None:
+                    process.terminate()
+                    await asyncio.sleep(0.1)
+                    if process.returncode is None:
+                        process.kill()
+                await process.wait()
+                if hasattr(process, '_transport') and process._transport:
+                    process._transport.close()
+            except:
+                pass
+        self.subprocesses.clear()
+
+
+class subprocessManager:
+    """
+    Manage subprocess of commands (synchronous wrapper)
+    """
+    def __init__(self, shell: bool = False, encoding: Optional[str] = None):
+        self._async_manager = asyncSubprocessManager(shell, encoding)
+        self._loop = None
+
+    @property
+    def subprocesses(self):
+        return self._async_manager.subprocesses
+
+    @property
+    def encoding(self):
+        return self._async_manager.encoding
+
+    def _run_async(self, coro):
+        try:
+            self._loop = asyncio.get_event_loop()
+        except RuntimeError:
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+        return self._loop.run_until_complete(coro)
+
+    def create(self, args: Union[list[Union[list, str]], str], merge: bool = True, env: Optional[os._Environ] = None):
+        return self._run_async(self._async_manager.create(args, merge, env))
+
+    def monitor(self, showProgress: bool = True, logPath: Optional[str] = None):
+        while True:
+            try:
+                yield self._run_async(self._async_manager.monitor(showProgress, logPath).__anext__())
+            except StopAsyncIteration:
+                break
+
+    def close(self):
+        self._run_async(self._async_manager.close())
+        if self._loop:
+            self._loop.close()
+
+    def result(self,
+        decodeResult: Optional[bool] = None,
+        showProgress: bool = True,
+        logPath: Optional[str] = None
+    ):
+        try:
+            output, error = (bytes(), bytes())
+            for o, e in self.monitor(showProgress, logPath):
+                output += o
+                error += e
+        finally:
+            output, error = output.strip(), error.strip()
+            output, error = output.decode(self.encoding, errors = 'ignore') if decodeResult else output, error.decode(self.encoding, errors = 'ignore') if decodeResult else error
+            returncode = self.subprocesses[-1].returncode
+            self.close()
+            return None if output in ('', b'') else output, None if error in ('', b'') else error, returncode
+
+
+def runCMD(
+    args: Union[list[Union[list, str]], str],
+    merge: bool = True,
+    shell: bool = False,
+    env: Optional[os._Environ] = None,
+    decodeResult: Optional[bool] = None,
+    showProgress: bool = True,
+    logPath: Optional[str] = None
+):
+    """
+    Run command
+    """
+    manageSubprocess = subprocessManager(shell)
+    manageSubprocess.create(args, merge, env)
+    return manageSubprocess.result(decodeResult, showProgress, logPath)
 
 #############################################################################################################
 

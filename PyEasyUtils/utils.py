@@ -1,4 +1,5 @@
 import inspect
+from types import FunctionType, MethodType
 from typing import Iterable
 
 #############################################################################################################
@@ -62,6 +63,8 @@ def getNamesFromMethod(
     """
     Function to get className and methodName from classmethod
     """
+    if type(method) not in [FunctionType, MethodType]:
+        raise Exception("Only accept classmethod or function")
     qualName = method.__qualname__
     className, methodName = qualName.split('.') if '.' in qualName else (None, qualName)
     return className, methodName
