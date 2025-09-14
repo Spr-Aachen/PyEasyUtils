@@ -11,7 +11,7 @@ with open('./README.md', encoding = 'utf-8') as f:
 
 setup(
     name = "PyEasyUtils",
-    version = '0.2.8',
+    version = '0.2.9',
     description = 'A simple python util library',
     long_description = LongDescription,
     long_description_content_type = 'text/markdown',
@@ -29,7 +29,6 @@ setup(
     ),
     include_package_data = True,
     install_requires = [
-        "tqdm",
         "psutil",
         "polars",
         "sqlalchemy",

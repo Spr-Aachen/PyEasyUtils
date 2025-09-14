@@ -5,7 +5,6 @@ import requests
 import urllib
 import hashlib
 import json
-from tqdm import tqdm
 from packaging import version
 from github import Github
 from pathlib import Path

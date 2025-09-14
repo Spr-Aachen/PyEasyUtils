@@ -2,7 +2,7 @@ import os
 import sys
 import platform
 import shlex
-import subprocess
+import subprocess, threading
 import asyncio
 from pathlib import Path
 from typing import Union, Optional, List
@@ -107,50 +107,50 @@ class asyncSubprocessManager:
         self.subprocesses.clear()
 
 
+# Manage event loops via thread-local data
+localThreadData = threading.local()
+
+
 class subprocessManager:
     """
     Manage subprocess of commands (synchronous wrapper)
     """
     def __init__(self, shell: bool = False, encoding: Optional[str] = None):
-        self._async_manager = asyncSubprocessManager(shell, encoding)
-        self._loop = None
+        self._asyncManager = asyncSubprocessManager(shell, encoding)
 
     @property
     def subprocesses(self):
-        return self._async_manager.subprocesses
+        return self._asyncManager.subprocesses
 
     @property
     def encoding(self):
-        return self._async_manager.encoding
+        return self._asyncManager.encoding
 
     def _run_async(self, coro):
-        try:
-            self._loop = asyncio.get_event_loop()
-        except RuntimeError:
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
-        return self._loop.run_until_complete(coro)
+        if not hasattr(localThreadData, 'loop'):
+            if platform.system() == 'Windows':
+                localThreadData.loop = asyncio.ProactorEventLoop()
+            else:
+                localThreadData.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(localThreadData.loop)
+        return localThreadData.loop.run_until_complete(coro)
 
-    def create(self, args: Union[list[Union[list, str]], str], merge: bool = True, env: Optional[os._Environ] = None):
-        return self._run_async(self._async_manager.create(args, merge, env))
+    def create(self, args: Union[List[Union[List, str]], str], merge: bool = True, env: Optional[os._Environ] = None):
+        return self._run_async(self._asyncManager.create(args, merge, env))
 
     def monitor(self, showProgress: bool = True, logPath: Optional[str] = None):
-        while True:
-            try:
-                yield self._run_async(self._async_manager.monitor(showProgress, logPath).__anext__())
-            except StopAsyncIteration:
-                break
+        async def collect():
+            results = []
+            async for o, e in self._asyncManager.monitor(showProgress, logPath):
+                results.append((o, e))
+            return results
+        for o, e in self._run_async(collect()):
+            yield o, e
 
     def close(self):
-        self._run_async(self._async_manager.close())
-        if self._loop:
-            self._loop.close()
+        self._run_async(self._asyncManager.close()) if self._asyncManager.subprocesses else None
 
-    def result(self,
-        decodeResult: Optional[bool] = None,
-        showProgress: bool = True,
-        logPath: Optional[str] = None
-    ):
+    def result(self, decodeResult: Optional[bool] = None, showProgress: bool = True, logPath: Optional[str] = None):
         try:
             output, error = (bytes(), bytes())
             for o, e in self.monitor(showProgress, logPath):
