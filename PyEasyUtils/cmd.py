@@ -2,7 +2,7 @@ import os
 import sys
 import platform
 import shlex
-import subprocess, threading
+import subprocess
 import asyncio
 from pathlib import Path
 from typing import Union, Optional, List
@@ -107,16 +107,14 @@ class asyncSubprocessManager:
         self.subprocesses.clear()
 
 
-# Manage event loops via thread-local data
-localThreadData = threading.local()
-
-
 class subprocessManager:
     """
     Manage subprocess of commands (synchronous wrapper)
     """
     def __init__(self, shell: bool = False, encoding: Optional[str] = None):
         self._asyncManager = asyncSubprocessManager(shell, encoding)
+
+        self._hasLoop = False
 
     @property
     def subprocesses(self):
@@ -127,33 +125,42 @@ class subprocessManager:
         return self._asyncManager.encoding
 
     def _run_async(self, coro):
-        if not hasattr(localThreadData, 'loop'):
-            if platform.system() == 'Windows':
-                localThreadData.loop = asyncio.ProactorEventLoop()
-            else:
-                localThreadData.loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(localThreadData.loop)
-        return localThreadData.loop.run_until_complete(coro)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise
+        except:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            self._hasLoop = True
+        return loop.run_until_complete(coro)
 
     def create(self, args: Union[List[Union[List, str]], str], merge: bool = True, env: Optional[os._Environ] = None):
         return self._run_async(self._asyncManager.create(args, merge, env))
 
-    def monitor(self, showProgress: bool = True, logPath: Optional[str] = None):
-        async def collect():
-            results = []
-            async for o, e in self._asyncManager.monitor(showProgress, logPath):
-                results.append((o, e))
-            return results
-        for o, e in self._run_async(collect()):
-            yield o, e
+    def monitor(self, showProgress: bool = True, logPath: Optional[str] = None, realTime: bool = True):
+        while realTime:
+            try:
+                yield self._run_async(self._asyncManager.monitor(showProgress, logPath).__anext__())
+            except StopAsyncIteration:
+                break
+        else:
+            async def collect():
+                results = []
+                async for o, e in self._asyncManager.monitor(showProgress, logPath):
+                    results.append((o, e))
+                return results
+            for o, e in self._run_async(collect()):
+                yield o, e
 
     def close(self):
         self._run_async(self._asyncManager.close()) if self._asyncManager.subprocesses else None
+        asyncio.get_event_loop().close() if self._hasLoop else None
 
     def result(self, decodeResult: Optional[bool] = None, showProgress: bool = True, logPath: Optional[str] = None):
         try:
             output, error = (bytes(), bytes())
-            for o, e in self.monitor(showProgress, logPath):
+            for o, e in self.monitor(showProgress, logPath, realTime = False):
                 output += o
                 error += e
         finally:
