@@ -1,6 +1,7 @@
 import os
 import sys
 import platform
+import stat
 import re
 import shutil
 from pathlib import Path
@@ -152,6 +153,21 @@ def renameIfExists(
     return pathStr
 
 
+def rmtree(
+    path: str
+):
+    """
+    Remove file or directory tree including read-only files
+    """
+    shutil.rmtree(
+        path,
+        onerror = lambda func, path, execinfo: (
+            os.chmod(path, stat.S_IWUSR),
+            func(path)
+        )
+    )
+
+
 def cleanDirectory(
     directory: str,
     whiteList: list
@@ -172,7 +188,7 @@ def cleanDirectory(
                 FolderPath = Path(dirPath).joinpath(folder).as_posix()
                 try:
                     if not any(folder in FolderPath for folder in whiteList):
-                        shutil.rmtree(FolderPath)
+                        rmtree(FolderPath)
                 except:
                     pass
 

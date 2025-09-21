@@ -25,13 +25,21 @@ def isVersionSatisfied(
         splitVersionReq = re.split('!|=|>|<', versionReq)
         requiredVersion = splitVersionReq[-1].strip()
         req = versionReq[:len(versionReq) - len(splitVersionReq[-1])].strip()
-        if req == "==":
+        if req == "":
             results.append(version.parse(currentVersion) == version.parse(requiredVersion))
-        if req == ">=":
+        elif req == "==":
+            results.append(version.parse(currentVersion) == version.parse(requiredVersion))
+        elif req == "!=":
+            results.append(version.parse(currentVersion) != version.parse(requiredVersion))
+        elif req == ">=":
             results.append(version.parse(currentVersion) >= version.parse(requiredVersion))
-        if req == "<=":
+        elif req == "<=":
             results.append(version.parse(currentVersion) <= version.parse(requiredVersion))
-        return True if False not in results else False
+        elif req == ">":
+            results.append(version.parse(currentVersion) > version.parse(requiredVersion))
+        elif req == "<":
+            results.append(version.parse(currentVersion) < version.parse(requiredVersion))
+    return True if False not in results else False
 
 
 def isSystemSatisfied(

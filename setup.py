@@ -11,7 +11,7 @@ with open('./README.md', encoding = 'utf-8') as f:
 
 setup(
     name = "PyEasyUtils",
-    version = '0.3.0',
+    version = '0.3.1',
     description = 'A simple python util library',
     long_description = LongDescription,
     long_description_content_type = 'text/markdown',
