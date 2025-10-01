@@ -1,9 +1,29 @@
 import sys
 from loguru import logger
 from pathlib import Path
+from enum import Enum
 from typing import Optional
 
 #############################################################################################################
+
+class loggerLevel(Enum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+    def no(self):
+        return logger.level(self.name).no
+
+
+_format = " | ".join([
+    '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>',
+    '<level>{level: <8}</level>',
+    #'<magenta>{process}</magenta>:<yellow>{thread}</yellow>',
+    '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>',
+])
+
 
 class loggerManager:
     """
@@ -14,8 +34,8 @@ class loggerManager:
 
     def createLogger(self,
         name: str,
-        level: str = "INFO",
-        format: str = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        level: str = loggerLevel.INFO,
+        format: str = _format,
         outputPath: Optional[str] = None,
         rotation: str = "10 MB",
     ):

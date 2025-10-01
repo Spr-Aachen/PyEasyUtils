@@ -20,7 +20,7 @@ def normPath(
     try:
         if str(string).strip() == '':
             raise
-        PathString = Path(string)#.resolve()
+        path = Path(string)#.resolve()
 
     except:
         return None
@@ -29,10 +29,10 @@ def normPath(
         if trailingSlash is None:
             trailingSlash = True if str(string).endswith(('/', '\\')) else False
         if platform.system() == 'Windows' or pathType == 'Win32':
-            string = PathString.as_posix().replace(r'/', '\\')
+            string = path.as_posix().replace(r'/', '\\')
             string += '\\' if trailingSlash else ''
         if platform.system() == 'Linux' or pathType == 'Posix':
-            string = PathString.as_posix()
+            string = path.as_posix()
             string += '/' if trailingSlash else ''
         return string
 
@@ -124,24 +124,24 @@ def getFileInfo(
 #############################################################################################################
 
 def renameIfExists(
-    pathStr: str
+    path: str
 ):
     """
-    If pathStr already exists, rename it to pathStr(0), pathStr(1), etc.
+    If path already exists, rename it to path(0), path(1), etc.
     """
-    parentPath, name = Path(pathStr).parent, Path(pathStr).name
+    parentPath, name = Path(path).parent, Path(path).name
     suffix = Path(name).suffix
     if len(suffix) > 0:
-        while Path(pathStr).exists():
+        while Path(path).exists():
             pattern = r'(\d+)\)\.'
             if re.search(pattern, name) is None:
                 name = name.replace('.', '(0).')
             else:
                 CurrentNumber = int(re.findall(pattern, name)[-1])
                 name = name.replace(f'({CurrentNumber}).', f'({CurrentNumber + 1}).')
-            pathStr = parentPath.joinpath(name).as_posix()
+            path = parentPath.joinpath(name).as_posix()
     else:
-        while Path(pathStr).exists():
+        while Path(path).exists():
             pattern = r'(\d+)\)'
             match = re.search(pattern, name)
             if match is None:
@@ -149,8 +149,8 @@ def renameIfExists(
             else:
                 CurrentNumber = int(match.group(1))
                 name = name[:match.start(1)] + f'({CurrentNumber + 1})'
-            pathStr = parentPath.joinpath(name).as_posix()
-    return pathStr
+            path = parentPath.joinpath(name).as_posix()
+    return path
 
 
 def rmtree(
@@ -185,10 +185,10 @@ def cleanDirectory(
                 except:
                     pass
             for folder in folders:
-                FolderPath = Path(dirPath).joinpath(folder).as_posix()
+                folderPath = Path(dirPath).joinpath(folder).as_posix()
                 try:
-                    if not any(folder in FolderPath for folder in whiteList):
-                        rmtree(FolderPath)
+                    if not any(folder in folderPath for folder in whiteList):
+                        rmtree(folderPath)
                 except:
                     pass
 
