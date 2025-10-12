@@ -6,7 +6,7 @@ from .path import normPath, getPaths, getBaseDir, getCurrentPath, getFileInfo, r
 from .log import loggerLevel, loggerManager
 from .process import taskAccelerationManager, terminateProcess, terminateOccupation
 from .cmd import subprocessManager, runCMD, asyncSubprocessManager, mkPyFileCommand, runScript, bootWithScript
-from .env import isVersionSatisfied, isSystemSatisfied, setEnvVar
+from .env import isVersionSatisfied, isSystemSatisfied, envType, setEnvVar
 from .config import configManager
 from .database import sqliteManager
 from .web import isPortAvailable, findAvailablePorts, freePort, requestManager, simpleRequest, responseParser, downloadFile, checkUpdateFromGithub

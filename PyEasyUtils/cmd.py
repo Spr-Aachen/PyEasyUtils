@@ -10,6 +10,7 @@ from typing import Union, Optional, List
 from .utils import toIterable
 from .path import normPath, getFileInfo
 from .text import getSystemEncoding
+from .log import loggerManager
 
 #############################################################################################################
 
@@ -78,8 +79,12 @@ class asyncSubprocessManager:
             lineString = line.decode(self.encoding, errors = 'replace')
             sys.stdout.write(lineString) if showProgress and sys.stdout is not None else None
             if logPath is not None:
-                with open(logPath, mode = 'a', encoding = 'utf-8') as log:
-                    log.write(lineString)
+                logger = loggerManager().createLogger(
+                    name = "cmd",
+                    format = "{message}",
+                    outputPath = logPath
+                )
+                logger.info(lineString)
             if process.returncode is not None:
                 break
 

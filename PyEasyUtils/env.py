@@ -3,6 +3,7 @@ import sys
 import platform
 import re
 from packaging import version
+from enum import Enum
 
 from .text import rawString
 from .path import normPath
@@ -64,10 +65,16 @@ def isSystemSatisfied(
 
 #############################################################################################################
 
+class envType(Enum):
+    System = "System"
+    User = "User"
+    Temp = "Temp"
+
+
 def setEnvVar(
     variable: str,
     value: str,
-    type: str = 'Temp',
+    type: envType = envType.Temp,
     affectOS: bool = True
 ):
     """
@@ -75,16 +82,17 @@ def setEnvVar(
     """
     value = rawString(value)
 
-    if type == 'Sys':
+    if type == envType.System:
         if platform.system() == 'Windows':
+            command = ";".join([
+                f"`$current = [Environment]::GetEnvironmentVariable('{variable}', 'Machine')",
+                f"`$new = '{value};' + `$current",
+                f"[Environment]::SetEnvironmentVariable('{variable}', `$new, 'Machine')",
+            ])
             runCMD(
-                # args = [
-                #     f'set VAR={value}{os.pathsep}%{variable}%',
-                #     f'reg add "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" /v "{variable}" /t REG_EXPAND_SZ /d "%VAR%" /f',
-                # ],
                 args = [
-                    f'for /f "usebackq tokens=2,*" %A in (`reg query "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" /v "{variable}"`) do set sysVAR=%B',
-                    f'setx "{variable}" "{value}{os.pathsep}%sysVAR%" /m'
+                    f'powershell.exe',
+                    f'Start-Process powershell -ArgumentList "-Command {command}" -Verb RunAs -Wait',
                 ],
                 shell = True,
                 env = os.environ,
@@ -93,16 +101,12 @@ def setEnvVar(
             with open('/etc/environment', 'a') as f:
                 f.write(f'\n{variable}="{value}"\n')
 
-    if type == 'User':
+    if type == envType.User:
         if platform.system() == 'Windows':
             runCMD(
-                # args = [
-                #     f'set VAR={value}{os.pathsep}%{variable}%',
-                #     f'reg add "HKEY_CURRENT_USER\\Environment" /v "{variable}" /t REG_EXPAND_SZ /d "%VAR%" /f',
-                # ],
                 args = [
                     f'for /f "usebackq tokens=2,*" %A in (`reg query "HKEY_CURRENT_USER\\Environment" /v "{variable}"`) do set userVAR=%B',
-                    f'setx "{variable}" "{value}{os.pathsep}%userVAR%"'
+                    f'if defined userVAR (setx "{variable}" "{value}{os.pathsep}%userVAR%") else (setx "{variable}" "{value}")'
                 ],
                 shell = True,
                 env = os.environ,
@@ -118,7 +122,7 @@ def setEnvVar(
             with open(config_file, 'a') as f:
                 f.write(f'\nexport {variable}="{value}"\n')
 
-    if type == 'Temp' or affectOS:
+    if type == envType.Temp or affectOS:
         EnvValue = os.environ.get(variable)
         if EnvValue is not None and normPath(value, 'Posix') not in [normPath(value, 'Posix') for value in EnvValue.split(os.pathsep)]:
             EnvValue = f'{value}{os.pathsep}{EnvValue}' #EnvValue = f'{EnvValue}{os.pathsep}{value}'
