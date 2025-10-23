@@ -196,7 +196,7 @@ def runCMD(
 
 def mkPyFileCommand(filePath: str, **kwargs):
     args = " ".join([f"--{name} {value}" for name, value in kwargs.items()])
-    command = 'python "%s" %s' % (filePath, args)
+    command = ('' if not filePath.strip().endswith('.py') else 'python ') + '"%s" %s' % (filePath, args)
     return command
 
 #############################################################################################################

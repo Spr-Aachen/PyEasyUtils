@@ -26,4 +26,5 @@ pip install PyEasyUtils -i https://pypi.org/simple/
 Here are some projects based on PyEasyUtils:
 - [QEasyWidgets](https://github.com/Spr-Aachen/QEasyWidgets)
 - [Easy Voice Toolkit](https://github.com/Spr-Aachen/Easy-Voice-Toolkit)
+- [Android Screen Defects Detector](https://github.com/Spr-Aachen/Android-Screen-Defects-Detector.git)
 - [LLM PromptMaster](https://github.com/Spr-Aachen/LLM-PromptMaster)

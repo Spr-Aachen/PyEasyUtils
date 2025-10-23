@@ -45,16 +45,18 @@ class loggerManager:
 
         filter = lambda record: record["extra"].get("name") == name
 
-        logger.add(
-            sys.stderr,
-            format = format,
-            level = level,
-            filter = filter,
-        )
+        stream = sys.stdout or sys.stderr or None # Choose a valid stream if available.
+        if stream:
+            logger.add(
+                stream,
+                format = format,
+                level = level,
+                filter = filter,
+            )
 
         if outputPath:
             dir = Path(outputPath).parent
-            dir.mkdir(parents = True) if not dir.exists() else None
+            dir.mkdir(parents = True, exist_ok=True)
 
             logger.add(
                 Path(outputPath).as_posix(),
