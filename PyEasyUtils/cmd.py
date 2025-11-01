@@ -37,7 +37,7 @@ class asyncSubprocessManager:
                 *arg,
                 stdout = asyncio.subprocess.PIPE,
                 stderr = asyncio.subprocess.STDOUT,
-                env = os.environ,
+                env = env or os.environ,
                 creationflags = subprocess.CREATE_NO_WINDOW if self.isWindowsSystem else 0,
                 text = False,
             )
@@ -53,7 +53,7 @@ class asyncSubprocessManager:
                 stdin = asyncio.subprocess.PIPE,
                 stdout = asyncio.subprocess.PIPE,
                 stderr = asyncio.subprocess.STDOUT,
-                env = env,
+                env = env or os.environ,
                 creationflags = subprocess.CREATE_NO_WINDOW if self.isWindowsSystem else 0,
                 text = False,
             ) if self.subprocesses.__len__() == 0 or not merge else self.subprocesses[-1]
@@ -71,6 +71,13 @@ class asyncSubprocessManager:
                 process.stdin.close() if (merge and self.subprocesses.__len__() == toIterable(args).__len__()) or not merge else None
 
     async def _getOutputLines(self, process: asyncio.subprocess.Process, showProgress: bool = True, logPath: Optional[str] = None):
+        logger = loggerManager().createLogger(
+            name = "cmd",
+            format = "{message}",
+            outputPath = logPath,
+            useStdIO = False
+        ) if logPath is not None else None
+
         while True:
             line = await process.stdout.readline()
             if not line:
@@ -78,13 +85,7 @@ class asyncSubprocessManager:
             yield line
             lineString = line.decode(self.encoding, errors = 'replace')
             sys.stdout.write(lineString) if showProgress and sys.stdout is not None else None
-            if logPath is not None:
-                logger = loggerManager().createLogger(
-                    name = "cmd",
-                    format = "{message}",
-                    outputPath = logPath
-                )
-                logger.info(lineString)
+            logger.info(lineString) if logger is not None else None
             if process.returncode is not None:
                 break
 
@@ -120,6 +121,22 @@ class subprocessManager:
         self._asyncManager = asyncSubprocessManager(shell, encoding)
 
         self._hasLoop = False
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._isWindowsSystem = self._asyncManager.isWindowsSystem
+
+    def _create_event_loop(self):
+        if self._isWindowsSystem:
+            try:
+                loop = asyncio.ProactorEventLoop()
+            except AttributeError:
+                loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        else:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        self._hasLoop = True
+        self._loop = loop
+        return loop
 
     @property
     def subprocesses(self):
@@ -133,22 +150,31 @@ class subprocessManager:
         try:
             loop = asyncio.get_event_loop()
             if loop.is_closed():
-                raise
-        except:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            self._hasLoop = True
+                raise RuntimeError
+        except RuntimeError:
+            loop = self._create_event_loop()
+        else:
+            if self._isWindowsSystem and not isinstance(loop, asyncio.ProactorEventLoop):
+                loop = self._create_event_loop()
         return loop.run_until_complete(coro)
 
     def create(self, args: Union[List[Union[List, str]], str], merge: bool = True, env: Optional[os._Environ] = None):
         return self._run_async(self._asyncManager.create(args, merge, env))
 
     def monitor(self, showProgress: bool = True, logPath: Optional[str] = None, realTime: bool = True):
-        while realTime:
+        if realTime:
+            async_monitor = self._asyncManager.monitor(showProgress, logPath)
             try:
-                yield self._run_async(self._asyncManager.monitor(showProgress, logPath).__anext__())
-            except StopAsyncIteration:
-                break
+                while True:
+                    try:
+                        yield self._run_async(async_monitor.__anext__())
+                    except StopAsyncIteration:
+                        break
+            finally:
+                try:
+                    self._run_async(async_monitor.aclose())
+                except AttributeError:
+                    pass
         else:
             async def collect():
                 results = []
@@ -159,8 +185,12 @@ class subprocessManager:
                 yield o, e
 
     def close(self):
-        self._run_async(self._asyncManager.close()) if self._asyncManager.subprocesses else None
-        asyncio.get_event_loop().close() if self._hasLoop else None
+        if self._asyncManager.subprocesses:
+            self._run_async(self._asyncManager.close())
+        if self._hasLoop and self._loop is not None and not self._loop.is_closed():
+            self._loop.close()
+        self._loop = None
+        self._hasLoop = False
 
     def result(self, decodeResult: Optional[bool] = None, showProgress: bool = True, logPath: Optional[str] = None):
         try:

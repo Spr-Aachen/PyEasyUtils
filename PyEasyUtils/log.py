@@ -34,10 +34,11 @@ class loggerManager:
 
     def createLogger(self,
         name: str,
-        level: str = loggerLevel.INFO,
+        level: loggerLevel = loggerLevel.INFO,
         format: str = _format,
         outputPath: Optional[str] = None,
         rotation: str = "10 MB",
+        useStdIO: bool = True,
     ):
         if not self.isLoggerInitialized:
             logger.remove()
@@ -45,12 +46,12 @@ class loggerManager:
 
         filter = lambda record: record["extra"].get("name") == name
 
-        stream = sys.stdout or sys.stderr or None # Choose a valid stream if available.
+        stream = (sys.stdout or sys.stderr or None) if useStdIO else None
         if stream:
             logger.add(
                 stream,
                 format = format,
-                level = level,
+                level = level.value,
                 filter = filter,
             )
 
@@ -60,7 +61,7 @@ class loggerManager:
 
             logger.add(
                 Path(outputPath).as_posix(),
-                level = level,
+                level = level.value,
                 format = format,
                 backtrace = True,
                 diagnose = True,
