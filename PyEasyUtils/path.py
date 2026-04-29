@@ -175,37 +175,39 @@ def cleanDirectory(
     """
     Remove all files and folders in directory except those in whiteList
     """
-    if Path(directory).exists():
-        for dirPath, folders, files in os.walk(directory, topdown = False):
-            for file in files:
-                filePath = Path(dirPath).joinpath(file).as_posix()
-                try:
-                    if not any(file in filePath for file in whiteList):
-                        os.remove(filePath)
-                except:
-                    pass
-            for folder in folders:
-                folderPath = Path(dirPath).joinpath(folder).as_posix()
-                try:
-                    if not any(folder in folderPath for folder in whiteList):
-                        rmtree(folderPath)
-                except:
-                    pass
+    if not Path(directory).exists():
+        return
+    for dirPath, folders, files in os.walk(directory, topdown = False):
+        for file in files:
+            filePath = Path(dirPath).joinpath(file).as_posix()
+            try:
+                if not any(file in filePath for file in whiteList):
+                    os.remove(filePath)
+            except:
+                pass
+        for folder in folders:
+            folderPath = Path(dirPath).joinpath(folder).as_posix()
+            try:
+                if not any(folder in folderPath for folder in whiteList):
+                    rmtree(folderPath)
+            except:
+                pass
 
 
 def moveFiles(
-    directory: str,
-    destination: str
+    src: str,
+    dst: str,
 ):
     """
     Move all files and folders in directory to destination
     """
-    for dirPath, folderNames, fileNames in os.walk(directory):
-        for folderName in folderNames:
-            if directory != destination:
-                shutil.move(Path(dirPath).joinpath(folderName).as_posix(), destination)
-        for fileName in fileNames:
-            if directory != destination:
-                shutil.move(Path(dirPath).joinpath(fileName).as_posix(), destination)
+    if Path(src) == Path(dst):
+        return
+    if Path(src).is_dir():
+        for dirPath, folderNames, fileNames in os.walk(src):
+            for folderName in folderNames:
+                shutil.move(Path(dirPath).joinpath(folderName).as_posix(), dst)
+            for fileName in fileNames:
+                shutil.move(Path(dirPath).joinpath(fileName).as_posix(), dst)
 
 #############################################################################################################

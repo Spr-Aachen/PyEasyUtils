@@ -2,6 +2,8 @@ import os
 import sys
 import platform
 import re
+import winreg
+import ctypes
 from packaging import version
 from enum import Enum
 
@@ -71,6 +73,29 @@ class envType(Enum):
     Temp = "Temp"
 
 
+def getAdminPrivileges():
+    """
+    Ensure the script runs with administrator privileges on Windows
+    """
+    if not platform.system() == 'Windows':
+        return
+    try:
+        if not ctypes.windll.shell32.IsUserAnAdmin():
+            # Re-run the program with admin rights
+            ctypes.windll.shell32.ShellExecuteW(
+                None,
+                "runas",
+                sys.executable,
+                " ".join(sys.argv),
+                None,
+                1
+            )
+            sys.exit()
+    except Exception:
+        print("Failed to elevate privileges. Please run as administrator.")
+        sys.exit(1)
+
+
 def setEnvVar(
     variable: str,
     value: str,
@@ -78,40 +103,72 @@ def setEnvVar(
     affectOS: bool = True
 ):
     """
-    Set environment variable
+    Set environment variable using winreg on Windows for System/User variables
     """
     value = rawString(value)
 
-    if type == envType.System:
-        if platform.system() == 'Windows':
-            command = ";".join([
-                f"`$current = [Environment]::GetEnvironmentVariable('{variable}', 'Machine')",
-                f"`$new = '{value};' + `$current",
-                f"[Environment]::SetEnvironmentVariable('{variable}', `$new, 'Machine')",
-            ])
-            runCMD(
-                args = [
-                    f'powershell.exe',
-                    f'Start-Process powershell -ArgumentList "-Command {command}" -Verb RunAs -Wait',
-                ],
-                shell = True,
-                env = os.environ,
-            )
-        if platform.system() == 'Linux':
+    if platform.system() == 'Windows':
+        if type == envType.System:
+            try:
+                getAdminPrivileges()
+                # Open registry key for environment variables
+                key = winreg.OpenKey(
+                    winreg.HKEY_LOCAL_MACHINE,
+                    r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment",
+                    0,
+                    winreg.KEY_ALL_ACCESS
+                )
+                # Determine new value
+                try:
+                    current_value, reg_type = winreg.QueryValueEx(key, variable)
+                    if current_value:
+                        new_value = f"{value}{os.pathsep}{current_value}"
+                    else:
+                        new_value = value
+                except FileNotFoundError:
+                    new_value = value
+                # Set new value
+                winreg.SetValueEx(key, variable, 0, winreg.REG_EXPAND_SZ if '%' in value else winreg.REG_SZ, new_value)
+                winreg.CloseKey(key)
+                # Broadcast change to all applications
+                ctypes.windll.user32.SendMessageW(0xFFFF, 0x001A, 0, "Environment")
+            except Exception as e:
+                print(f"Error setting system environment variable '{variable}': {e}")
+                return
+
+        elif type == envType.User:
+            try:
+                # Open registry key for environment variables
+                key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    r"Environment",
+                    0,
+                    winreg.KEY_ALL_ACCESS
+                )
+                # Determine new value
+                try:
+                    current_value, reg_type = winreg.QueryValueEx(key, variable)
+                    if current_value:
+                        new_value = f"{value}{os.pathsep}{current_value}"
+                    else:
+                        new_value = value
+                except FileNotFoundError:
+                    new_value = value
+                # Set new value
+                winreg.SetValueEx(key, variable, 0, winreg.REG_EXPAND_SZ if '%' in value else winreg.REG_SZ, new_value)
+                winreg.CloseKey(key)
+                # Broadcast change to all applications
+                ctypes.windll.user32.SendMessageW(0xFFFF, 0x001A, 0, "Environment")
+            except Exception as e:
+                print(f"Error setting user environment variable '{variable}': {e}")
+                return
+
+    elif platform.system() == 'Linux':
+        if type == envType.System:
             with open('/etc/environment', 'a') as f:
                 f.write(f'\n{variable}="{value}"\n')
 
-    if type == envType.User:
-        if platform.system() == 'Windows':
-            runCMD(
-                args = [
-                    f'for /f "usebackq tokens=2,*" %A in (`reg query "HKEY_CURRENT_USER\\Environment" /v "{variable}"`) do set userVAR=%B',
-                    f'if defined userVAR (setx "{variable}" "{value}{os.pathsep}%userVAR%") else (setx "{variable}" "{value}")'
-                ],
-                shell = True,
-                env = os.environ,
-            )
-        if platform.system() == 'Linux':
+        if type == envType.User:
             shell = os.environ.get('SHELL', '/bin/bash')
             if 'bash' in shell:
                 config_file = os.path.expanduser('~/.bashrc')
@@ -122,12 +179,14 @@ def setEnvVar(
             with open(config_file, 'a') as f:
                 f.write(f'\nexport {variable}="{value}"\n')
 
+    # For temporary variables or when affectOS is True
     if type == envType.Temp or affectOS:
         EnvValue = os.environ.get(variable)
-        if EnvValue is not None and normPath(value, 'Posix') not in [normPath(value, 'Posix') for value in EnvValue.split(os.pathsep)]:
-            EnvValue = f'{value}{os.pathsep}{EnvValue}' #EnvValue = f'{EnvValue}{os.pathsep}{value}'
+        if EnvValue is not None:
+            if value not in EnvValue.split(os.pathsep):
+                val_new = f'{value}{os.pathsep}{EnvValue}'
+                os.environ[variable] = val_new
         else:
-            EnvValue = value
-        os.environ[variable] = EnvValue
+            os.environ[variable] = value
 
 #############################################################################################################
