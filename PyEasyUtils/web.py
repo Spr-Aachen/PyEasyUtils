@@ -1,3 +1,4 @@
+import io
 import os
 import platform
 import socket
@@ -62,6 +63,43 @@ def freePort(port: int):
 
 #############################################################################################################
 
+def responseParser(
+    response: requests.Response,
+    stream: bool = False,
+    decodeUnicode: bool = False,
+    encoding: Optional[str] = None,
+):
+    if response.status_code != 200:
+        print("Warning: status code is not 200")
+
+    if not stream:
+        for chunk in response.iter_content(chunk_size = None, decode_unicode = False):
+            if chunk:
+                content = chunk.decode(encoding or getSystemEncoding(), errors = 'replace') if decodeUnicode and isinstance(chunk, bytes) else chunk
+                yield content, response.status_code
+        return
+
+    if not decodeUnicode:
+        for chunk in response.iter_content(chunk_size = 1024, decode_unicode = False):
+            if chunk:
+                yield chunk, response.status_code
+        return
+
+    buffer = ""
+    usedEncoding = encoding or getSystemEncoding()
+    for chunk in response.iter_content(chunk_size = 1024, decode_unicode = False):
+        if not chunk:
+            continue
+        text = chunk.decode(usedEncoding, errors = 'replace') if isinstance(chunk, bytes) else str(chunk)
+        buffer += text
+        while '\n' in buffer:
+            line, buffer = buffer.split('\n', 1)
+            lineWithNewline = line + '\n'
+            yield lineWithNewline, response.status_code
+    if buffer:
+        yield buffer, response.status_code
+
+
 class requestManager(Enum):
     """
     Manage request
@@ -90,7 +128,7 @@ class requestManager(Enum):
             + (f"/{pathParams}" if len(pathParams) > 0 else "")
             + (f"?{queryParams}" if len(queryParams) > 0 else ""),
             headers = headers,
-            data = data if isinstance(data, str) else (json.dumps(data) if data is not None else None),
+            data = data if isinstance(data, str) or kwargs.get("files") is not None else (json.dumps(data) if data is not None else None),
             stream = stream,
             **kwargs
         )
@@ -155,6 +193,47 @@ def simpleRequest(
         encodedResponse = response.json()
         result = tuple([encodedResponse.get(key, {}) for key in keys]) if keys else encodedResponse
         return result
+
+#############################################################################################################
+
+def uploadFile(
+    reqMethod: requestManager,
+    protocol: str,
+    host: str,
+    port: int,
+    pathParams: Union[str, list[str], None] = None,
+    filePath: Optional[str] = None,
+    fileBytes: Optional[bytes] = None,
+    fileName: Optional[str] = None,
+    fileKeyWord: str = "file",
+    fields: Optional[dict] = None,
+    headers: Optional[dict] = None,
+    stream: bool = False,
+    **kwargs,
+):
+    """
+    Upload a local file (or in-memory bytes) as multipart/form-data;
+    returns the response object, so use it as a context manager
+    """
+    if fileBytes is not None:
+        fileObj = io.BytesIO(fileBytes)
+        fileName = fileName or "chunk.bin"
+    else:
+        fileObj = open(filePath, 'rb')
+        fileName = fileName or Path(filePath).name
+    try:
+        return reqMethod.request(
+            protocol, host, port, pathParams,
+            headers = headers,
+            data = fields,
+            stream = stream,
+            files = {
+                fileKeyWord: (fileName, fileObj, 'application/octet-stream')
+            },
+            **kwargs
+        )
+    finally:
+        fileObj.close()
 
 #############################################################################################################
 

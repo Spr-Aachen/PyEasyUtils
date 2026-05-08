@@ -9,4 +9,4 @@ from .cmd import subprocessManager, runCMD, asyncSubprocessManager, mkPyFileComm
 from .env import isVersionSatisfied, isSystemSatisfied, envType, setEnvVar
 from .config import configManager
 from .database import sqliteManager
-from .web import isPortAvailable, findAvailablePorts, freePort, requestManager, simpleRequest, responseParser, downloadFromURL, checkUpdateFromGithub
+from .web import isPortAvailable, findAvailablePorts, freePort, requestManager, simpleRequest, responseParser, uploadFile, downloadFromURL, checkUpdateFromGithub
