@@ -59,7 +59,7 @@ class sqliteManager:
 
     def toHistorydb(self, file_path):
         '''
-        将[表格哈希值,表格数据库名]写入历史记录数据库
+        将 [表格哈希值, 表格数据库名] 写入历史记录数据库
         '''
         fileHash = hashlib.md5(open(file_path, 'rb').read()).hexdigest()
         df = polars.DataFrame({
