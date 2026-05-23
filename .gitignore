@@ -1,9 +1,10 @@
+# Editor config
+**/.vscode/
+
 # Generated contents
 **/__pycache__/
+
+# Built contents
 **/build/
 **/dist/
-**/**.egg-info
-
-# Others
-**/.vscode/
-**/*.ipynb
+**/*.egg-info/
